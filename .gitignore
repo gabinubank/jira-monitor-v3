@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# Build
+build/
+dist/
+*.spec
+
+# macOS
+.DS_Store
+*.icns
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Config (sensitive)
+config.json
+
+# Logs
+*.log
+tray_debug.log
+
+# Test files with tokens
+test_*.py
