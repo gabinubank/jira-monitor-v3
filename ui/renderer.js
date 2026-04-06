@@ -3,21 +3,6 @@ const { ipcRenderer, webFrame } = require('electron');
 // 🎛️ CONTROLE DE DEBUG: Altere para true para ver logs detalhados
 const DEBUG_MODE = false;
 
-// 🌍 Helper de tradução - shortcut para getTranslation()
-const t = (key, fallback = null) => {
-  try {
-    if (typeof getTranslation === 'function' && typeof getCurrentLanguage === 'function') {
-      const lang = getCurrentLanguage() || 'pt-BR';
-      const translation = getTranslation(key, lang);
-      // Se a tradução retorna a própria chave, use o fallback
-      return (translation === key && fallback) ? fallback : translation;
-    }
-  } catch (e) {
-    console.warn('Translation error:', key, e);
-  }
-  return fallback || key;
-};
-
 // 🛡️ Função auxiliar para logs condicionais
 const debugLog = (...args) => {
   if (DEBUG_MODE) {
@@ -28,13 +13,14 @@ const debugLog = (...args) => {
 // Estado Global
 let currentConfig = {};
 let currentStats = null;
-let currentUser = null; // Dados do usuário atual (displayName, emailAddress, accountId)
 let slaStatusCache = new Map(); // Cache do status de SLA de cada ticket
 let searchTickets = [];
 let updateInterval = null;
 let isProMode = false;
 let isHorizontalLayout = false;
 let layoutMode = 'normal'; // normal, horizontal, super-compact
+const SUPER_COMPACT_WIDTH = 360;
+const SUPER_COMPACT_HEIGHT = 72;
 
 // 🚀 OTIMIZAÇÃO: Limpar cache de SLA periodicamente (a cada 10 minutos)
 setInterval(() => {
@@ -62,84 +48,11 @@ let lastUpdateTime = null;
 let densityMode = 'default'; // default, compact, comfortable
 let isMicroMode = false; // Modo micro (visualização ultra compacta)
 let isSecondaryWindow = false; // Se esta é uma janela secundária de monitoramento
+let isCompactMirror = false; // Janela espelho (replica exata do modo compacto)
 let previousTicketKeys = new Set(); // Para detectar novos tickets
+/** Último count CRITICIDADE_BB visto (null = ainda não houve poll; evita piscar no 1º load) */
+let previousCriticidadeBbCount = null;
 let previousTicketStates = new Map(); // Para detectar mudanças de status { key: { status, assignee } }
-
-// 🚀 FUNÇÃO HELPER: Carregar SLAs em batch com timeout e fallback
-async function loadSlaForTicketsBatch(ticketKeys, timeoutMs = 12000) {
-  if (!ticketKeys || ticketKeys.length === 0) return;
-  
-  const uniqueKeys = [...new Set(ticketKeys)];
-  debugLog(`🔄 [SLA] Carregando SLAs em batch para ${uniqueKeys.length} tickets...`);
-  
-  // Pequeno delay para garantir que os containers foram renderizados
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  // Criar promise com timeout
-  const timeoutPromise = new Promise((_, reject) => 
-    setTimeout(() => reject(new Error('SLA batch timeout')), timeoutMs)
-  );
-  
-  try {
-    // Tentar carregar em batch
-    const result = await Promise.race([
-      ipcRenderer.invoke('get-ticket-sla-batch', uniqueKeys),
-      timeoutPromise
-    ]);
-    
-    if (result && result.success && result.data) {
-      // Atualizar cada ticket
-      for (const key of uniqueKeys) {
-        const slaContainer = document.getElementById(`sla-${key}`);
-        if (slaContainer) {
-          const slaData = result.data[key];
-          if (slaData) {
-            updateTicketSlaDisplay(key, slaData);
-          } else {
-            // Sem SLA disponível - limpar completamente
-            slaContainer.innerHTML = '';
-            slaContainer.style.display = 'none';
-          }
-        }
-      }
-      debugLog(`✅ [SLA] Batch carregado: ${Object.keys(result.data).length} SLAs`);
-    } else {
-      // Sem resultado - limpar todos
-      clearSlaContainers(uniqueKeys);
-    }
-  } catch (err) {
-    console.warn(`⚠️ [SLA] Batch falhou:`, err.message);
-    // Em caso de erro, limpar todos os containers para não ficar "Carregando..."
-    clearSlaContainers(uniqueKeys);
-  }
-}
-
-// Limpar containers de SLA (quando falha ou sem dados)
-function clearSlaContainers(ticketKeys) {
-  for (const key of ticketKeys) {
-    const slaContainer = document.getElementById(`sla-${key}`);
-    if (slaContainer) {
-      slaContainer.innerHTML = '';
-      slaContainer.style.display = 'none';
-    }
-  }
-}
-
-// Limpar TODOS os containers de SLA que ainda mostram "Carregando"
-function clearAllLoadingSlaContainers() {
-  document.querySelectorAll('.sla-loading').forEach(el => {
-    const parent = el.closest('.ticket-sla-info');
-    if (parent) {
-      parent.innerHTML = '';
-      parent.style.display = 'none';
-    }
-  });
-}
-
-// Executar limpeza periódica de containers travados (a cada 30 segundos)
-setInterval(() => {
-  clearAllLoadingSlaContainers();
-}, 30000);
 let viewedTickets = new Set(); // Tickets que o usuário já visualizou
 let windowOpacity = 1.0; // Opacidade da janela (0.2 - 1.0)
 let internalNotifications = []; // Notificações internas (sino)
@@ -196,239 +109,10 @@ function applyLanguage(lang = 'pt-BR') {
     }
   });
   
-  // Traduzir elementos específicos do HTML sem data-i18n
-  translateStaticElements(lang);
-  
   // Salvar preferência de idioma
   localStorage.setItem('language', lang);
   
   debugLog(`✅ Idioma ${lang} aplicado com sucesso`);
-}
-
-/**
- * Traduz elementos estáticos do HTML que não têm data-i18n
- */
-function translateStaticElements(lang) {
-  const tr = (key) => getTranslation(key, lang);
-  
-  // Títulos de cards de estatísticas
-  const cardTitles = {
-    'card-total': tr('card.totalTicketsIT'),
-    'card-support': tr('card.waitingSupport'),
-    'card-customer': tr('card.waitingCustomer'),
-    'card-pending': tr('card.ticketsPending'),
-    'card-inprogress': tr('card.ticketsInProgress'),
-    'card-simcard': tr('card.ticketsPendingSimcard'),
-    'card-l0bot': tr('card.ticketsL0JiraBot'),
-    'card-l1open': tr('card.allL1Open')
-  };
-  
-  Object.entries(cardTitles).forEach(([id, text]) => {
-    const card = document.getElementById(id);
-    if (card) {
-      const title = card.querySelector('h3');
-      if (title) title.textContent = text;
-    }
-  });
-  
-  // Mini Stats Dashboard
-  const miniStatLabels = document.querySelectorAll('.mini-stat-label');
-  const miniStatTexts = [tr('ministat.resolutionRate'), tr('ministat.avgTime'), tr('ministat.today')];
-  miniStatLabels.forEach((label, i) => {
-    if (miniStatTexts[i]) label.textContent = miniStatTexts[i];
-  });
-  
-  // Notificações Preview
-  const notifHeader = document.querySelector('.notifications-preview-header h3');
-  if (notifHeader) notifHeader.textContent = tr('notifications.title');
-  
-  const viewAllBtn = document.getElementById('view-all-notifications');
-  if (viewAllBtn) viewAllBtn.textContent = tr('notifications.viewAll');
-  
-  const clearBtn = document.getElementById('clear-notifications');
-  if (clearBtn) clearBtn.textContent = tr('notifications.clear');
-  
-  // Documentação
-  const docsHeader = document.querySelector('.docs-dropdown-header h3');
-  if (docsHeader) docsHeader.textContent = tr('docs.title');
-  
-  // Timer labels
-  const timerManual = document.querySelector('#timer-mode-manual span');
-  if (timerManual) timerManual.textContent = tr('timer.manual');
-  
-  const timerPomodoro = document.querySelector('#timer-mode-pomodoro span');
-  if (timerPomodoro) timerPomodoro.textContent = tr('timer.pomodoro');
-  
-  const timerStart = document.querySelector('#timer-start-btn span');
-  if (timerStart) timerStart.textContent = tr('timer.start');
-  
-  const timerPause = document.querySelector('#timer-pause-btn span');
-  if (timerPause) timerPause.textContent = tr('timer.pause');
-  
-  const timerStop = document.querySelector('#timer-stop-btn span');
-  if (timerStop) timerStop.textContent = tr('timer.stop');
-  
-  // User Monitor
-  const userMonitorHeader = document.querySelector('.user-monitor-dropdown-header h3');
-  if (userMonitorHeader) userMonitorHeader.textContent = tr('userMonitor.title');
-  
-  const addUserBtn = document.querySelector('#add-user-btn span');
-  if (addUserBtn) addUserBtn.textContent = tr('userMonitor.addAnother');
-  
-  const userMonitorLabel = document.getElementById('user-monitor-label');
-  if (userMonitorLabel && userMonitorLabel.textContent === 'Você') {
-    userMonitorLabel.textContent = tr('userMonitor.you');
-  }
-  
-  // Templates Modal
-  const templatesHeader = document.querySelector('.templates-header h3');
-  if (templatesHeader) templatesHeader.textContent = tr('templates.title');
-  
-  const addTemplateBtn = document.querySelector('#add-template-btn span');
-  if (addTemplateBtn) addTemplateBtn.textContent = tr('templates.create');
-  
-  // Theme Customizer
-  const themeHeader = document.querySelector('.theme-customizer-header h3');
-  if (themeHeader) themeHeader.textContent = tr('theme.title');
-  
-  // Export Modal
-  const exportHeader = document.querySelector('.export-header h3');
-  if (exportHeader) exportHeader.textContent = tr('export.title');
-  
-  // Config Panel
-  const configHeader = document.querySelector('.config-header h2');
-  if (configHeader) configHeader.textContent = tr('settings.title');
-  
-  // Shortcuts Modal
-  const shortcutsHeader = document.querySelector('.shortcuts-modal-header h2');
-  if (shortcutsHeader) shortcutsHeader.textContent = tr('shortcuts.title');
-  
-  // Add User Modal
-  const addUserModalHeader = document.querySelector('.add-user-modal-header h2');
-  if (addUserModalHeader) addUserModalHeader.textContent = tr('addUser.title');
-  
-  const addUserDesc = document.querySelector('.add-user-description');
-  if (addUserDesc) addUserDesc.textContent = tr('addUser.enterEmail');
-  
-  // Ticket Preview
-  const previewLoading = document.querySelector('#ticket-preview-loading p');
-  if (previewLoading) previewLoading.textContent = tr('preview.loading');
-  
-  const previewError = document.querySelector('#ticket-preview-error p');
-  if (previewError) previewError.textContent = tr('preview.error');
-  
-  // Buttons
-  const cancelAddUser = document.getElementById('cancel-add-user-btn');
-  if (cancelAddUser) cancelAddUser.textContent = tr('btn.cancel');
-  
-  const confirmAddUser = document.getElementById('confirm-add-user-btn');
-  if (confirmAddUser) confirmAddUser.textContent = tr('btn.add');
-  
-  const retryPreview = document.getElementById('retry-ticket-preview');
-  if (retryPreview) retryPreview.textContent = tr('btn.retry');
-  
-  // Daily Activity
-  const dailyLabels = document.querySelectorAll('.daily-stat-label');
-  const dailyTexts = [tr('daily.new'), tr('daily.closed'), tr('daily.updated')];
-  dailyLabels.forEach((label, i) => {
-    if (dailyTexts[i]) label.textContent = dailyTexts[i];
-  });
-  
-  // Tooltips/Titles
-  const tooltipMappings = {
-    'menu-pro': tr('tooltip.activateAdvanced'),
-    'menu-refresh': tr('tooltip.refreshManual'),
-    'menu-settings': tr('tooltip.openSettings'),
-    'menu-okta': tr('tooltip.openOkta'),
-    'menu-jamf': tr('tooltip.openJamf'),
-    'menu-jira-portal': tr('tooltip.openJiraPortal'),
-    'menu-google-admin': tr('tooltip.openGoogleAdmin'),
-    'menu-search': tr('tooltip.quickSearch'),
-    'menu-shortcuts': tr('tooltip.viewShortcuts'),
-    'menu-templates': tr('tooltip.templates'),
-    'menu-timer': tr('tooltip.openTimer'),
-    'menu-themes': tr('tooltip.customizeTheme'),
-    'menu-export': tr('tooltip.exportReport'),
-    'connection-status': tr('tooltip.connectionStatus'),
-    'zoom-btn': 'Zoom',
-    'search-btn': tr('tooltip.search') || 'Busca Rápida',
-    'toggle-density-btn': tr('tooltip.densityMode'),
-    'user-monitor-btn': tr('tooltip.monitoredUser')
-  };
-  
-  Object.entries(tooltipMappings).forEach(([id, title]) => {
-    const el = document.getElementById(id);
-    if (el) el.title = title;
-  });
-  
-  // Expand buttons
-  document.querySelectorAll('.expand-btn, .expand-btn-inline').forEach(btn => {
-    btn.title = tr('general.expand');
-  });
-  
-  // Config Panel - Placeholders
-  const jiraUrlInput = document.getElementById('jira-url');
-  if (jiraUrlInput) jiraUrlInput.placeholder = tr('settings.placeholderUrl');
-  
-  const jiraEmailInput = document.getElementById('jira-email');
-  if (jiraEmailInput) jiraEmailInput.placeholder = tr('settings.placeholderEmail');
-  
-  const jiraTokenInput = document.getElementById('jira-api-token');
-  if (jiraTokenInput) jiraTokenInput.placeholder = tr('settings.placeholderToken');
-  
-  // Config Panel - Labels sem data-i18n
-  const queueIdLabel = document.querySelector('label[for="queue-id"]');
-  if (queueIdLabel) queueIdLabel.textContent = tr('settings.queueId');
-  
-  const refreshIntervalLabel = document.querySelector('label[for="refresh-interval"]');
-  if (refreshIntervalLabel) refreshIntervalLabel.textContent = tr('settings.refreshInterval');
-  
-  const oldTicketsDaysLabel = document.querySelector('label[for="old-tickets-days"]');
-  if (oldTicketsDaysLabel) oldTicketsDaysLabel.textContent = tr('settings.oldTicketsDays');
-  
-  // Config Panel - Checkboxes
-  const alertSlaSpan = document.querySelector('#alert-sla')?.parentElement?.querySelector('span');
-  if (alertSlaSpan) alertSlaSpan.textContent = tr('settings.alertSla');
-  
-  const alertOldSpan = document.querySelector('#alert-old-tickets')?.parentElement?.querySelector('span');
-  if (alertOldSpan) alertOldSpan.textContent = tr('settings.alertOld');
-  
-  const desktopNotifSpan = document.querySelector('#desktop-notifications')?.parentElement?.querySelector('span');
-  if (desktopNotifSpan) desktopNotifSpan.textContent = tr('settings.desktopNotifications');
-  
-  const testNotifBtn = document.getElementById('test-notification-btn');
-  if (testNotifBtn) testNotifBtn.textContent = tr('settings.test');
-  
-  const notifyNewSpan = document.querySelector('#notify-new-tickets')?.parentElement?.querySelector('span');
-  if (notifyNewSpan) notifyNewSpan.textContent = tr('settings.notifyNew');
-  
-  const notifyStatusSpan = document.querySelector('#notify-status-changes')?.parentElement?.querySelector('span');
-  if (notifyStatusSpan) notifyStatusSpan.textContent = tr('settings.notifyStatus');
-  
-  const notifyReassignSpan = document.querySelector('#notify-reassignments')?.parentElement?.querySelector('span');
-  if (notifyReassignSpan) notifyReassignSpan.textContent = tr('settings.notifyReassign');
-  
-  const notifyMentionsSpan = document.querySelector('#notify-mentions')?.parentElement?.querySelector('span');
-  if (notifyMentionsSpan) notifyMentionsSpan.textContent = tr('settings.notifyMentions');
-  
-  const soundNotifSpan = document.querySelector('#sound-notifications')?.parentElement?.querySelector('span');
-  if (soundNotifSpan) soundNotifSpan.textContent = tr('settings.soundNotifications');
-  
-  const proModeSpan = document.querySelector('#pro-mode')?.parentElement?.querySelector('span');
-  if (proModeSpan) proModeSpan.textContent = tr('settings.proMode');
-  
-  // Config Panel - Save/Cancel buttons
-  const saveConfigBtn = document.getElementById('save-config-btn');
-  if (saveConfigBtn) {
-    const span = saveConfigBtn.querySelector('span');
-    if (span) span.textContent = tr('settings.save');
-  }
-  
-  const cancelConfigBtn = document.getElementById('cancel-config-btn');
-  if (cancelConfigBtn) {
-    const span = cancelConfigBtn.querySelector('span');
-    if (span) span.textContent = tr('settings.cancel');
-  }
 }
 
 /**
@@ -530,6 +214,20 @@ function startDriverTour() {
     
     console.log('🌍 Idioma do tour:', lang);
     
+    // 🎯 Variáveis para controlar ações interativas do tour
+    let tourLayoutChanges = 0; // Contador de mudanças de layout
+    let tourProModeActivated = false; // Se Modo Pro foi ativado
+    const initialLayout = layoutMode; // Layout inicial
+    
+    // 🎯 Listener temporário para detectar mudanças de layout durante o tour
+    const layoutChangeListener = () => {
+      tourLayoutChanges++;
+      console.log('🎯 Tour: Layout mudou!', tourLayoutChanges, 'vezes');
+    };
+    
+    // Adicionar listener
+    window.addEventListener('layoutChanged', layoutChangeListener);
+    
     // Criar instância do driver com configuração no idioma correto
     // A biblioteca está exposta em window.driver.js.driver()
     const driverObj = window.driver.js.driver({
@@ -551,6 +249,10 @@ function startDriverTour() {
     // Callback quando o tour termina (completed or skipped)
     onDestroyed: async () => {
       debugLog('🎓 Onboarding Tour finalizado');
+      
+      // 🧹 Limpar listeners do tour
+      window.removeEventListener('layoutChanged', layoutChangeListener);
+      console.log('🧹 Listeners do tour removidos');
       
       // Salvar no config que o tutorial foi completado
       try {
@@ -582,24 +284,26 @@ function startDriverTour() {
     },
     
     steps: [
+      // 1. Boas-vindas
       {
-        element: '#stats-grid',
         popover: {
           title: t('tour.step1.title'),
           description: t('tour.step1.description'),
+          side: 'center',
+          align: 'center'
+        }
+      },
+      // 2. Stats Grid
+      {
+        element: '#stats-grid',
+        popover: {
+          title: t('tour.step2.title'),
+          description: t('tour.step2.description'),
           side: 'bottom',
           align: 'center'
         }
       },
-      {
-        element: '#refresh-btn',
-        popover: {
-          title: t('tour.step2.title'),
-          description: t('tour.step2.description'),
-          side: 'left',
-          align: 'center'
-        }
-      },
+      // 3. Notificações (permissão pedida ANTES do tour)
       {
         element: '#notifications-btn',
         popover: {
@@ -609,6 +313,7 @@ function startDriverTour() {
           align: 'center'
         }
       },
+      // 4. Layouts - Parte 1: Introdução
       {
         element: '#menu-btn',
         popover: {
@@ -618,10 +323,156 @@ function startDriverTour() {
           align: 'center'
         }
       },
+      // 5. Layouts - Parte 2: Abrir menu
       {
+        element: '#menu-btn',
         popover: {
           title: t('tour.step5.title'),
           description: t('tour.step5.description'),
+          side: 'left',
+          align: 'center'
+        }
+      },
+      // 6. Layouts - Parte 3: Layout Horizontal (AVANÇA AUTOMATICAMENTE)
+      {
+        element: '#menu-toggle-layout',
+        popover: {
+          title: t('tour.step6.title'),
+          description: t('tour.step6.description') + '\n\n⏳ Aguardando você mudar para Layout Horizontal...',
+          side: 'right',
+          align: 'start',
+          showButtons: ['previous', 'close'] // Remove botão "Próximo" - só avança quando mudar layout
+        },
+        onHighlighted: () => {
+          const targetChanges = tourLayoutChanges + 1;
+          const autoAdvance = () => {
+            if (tourLayoutChanges >= targetChanges && layoutMode === 'horizontal') {
+              console.log('🎯 Layout mudou para Horizontal! Avançando...');
+              window.removeEventListener('layoutChanged', autoAdvance);
+              setTimeout(() => driverObj.moveNext(), 500);
+            }
+          };
+          window.addEventListener('layoutChanged', autoAdvance);
+        }
+      },
+      // 7. Layouts - Parte 4: Layout Super Compacto (AVANÇA AUTOMATICAMENTE)
+      {
+        element: '#menu-toggle-layout',
+        popover: {
+          title: t('tour.step7.title'),
+          description: t('tour.step7.description') + '\n\n⏳ Aguardando você mudar para Layout Super Compacto...',
+          side: 'right',
+          align: 'start',
+          showButtons: ['previous', 'close']
+        },
+        onHighlighted: () => {
+          const targetChanges = tourLayoutChanges + 1;
+          const autoAdvance = () => {
+            if (tourLayoutChanges >= targetChanges && layoutMode === 'super-compact') {
+              console.log('🎯 Layout mudou para Super Compacto! Avançando...');
+              window.removeEventListener('layoutChanged', autoAdvance);
+              setTimeout(() => driverObj.moveNext(), 500);
+            }
+          };
+          window.addEventListener('layoutChanged', autoAdvance);
+        }
+      },
+      // 8. Layouts - Parte 5: Voltar ao Normal (AVANÇA AUTOMATICAMENTE)
+      {
+        element: '#menu-toggle-layout',
+        popover: {
+          title: t('tour.step8.title'),
+          description: t('tour.step8.description') + '\n\n⏳ Aguardando você voltar ao Layout Normal...',
+          side: 'right',
+          align: 'start',
+          showButtons: ['previous', 'close']
+        },
+        onHighlighted: () => {
+          const targetChanges = tourLayoutChanges + 1;
+          const autoAdvance = () => {
+            if (tourLayoutChanges >= targetChanges && layoutMode === 'normal') {
+              console.log('🎯 Layout voltou ao Normal! Avançando...');
+              window.removeEventListener('layoutChanged', autoAdvance);
+              setTimeout(() => driverObj.moveNext(), 500);
+            }
+          };
+          window.addEventListener('layoutChanged', autoAdvance);
+        }
+      },
+      // 9. Modo Pro - Introdução
+      {
+        element: '#menu-pro',
+        popover: {
+          title: t('tour.step9.title'),
+          description: t('tour.step9.description'),
+          side: 'right',
+          align: 'start'
+        }
+      },
+      // 10. Modo Pro - Clique para ativar (AVANÇA AUTOMATICAMENTE)
+      {
+        element: '#menu-pro',
+        popover: {
+          title: t('tour.step10.title'),
+          description: t('tour.step10.description') + '\n\n⏳ Aguardando você ativar o Modo Pro...',
+          side: 'right',
+          align: 'start',
+          showButtons: ['previous', 'close'] // Remove botão "Próximo"
+        },
+        onHighlighted: () => {
+          const autoAdvance = (event) => {
+            if (event.detail.isProMode === true) {
+              console.log('🎯 Modo Pro ativado! Avançando...');
+              window.removeEventListener('proModeChanged', autoAdvance);
+              setTimeout(() => driverObj.moveNext(), 500);
+            }
+          };
+          window.addEventListener('proModeChanged', autoAdvance);
+        }
+      },
+      // 11. Temas - Abrir customizador
+      {
+        element: '#menu-themes',
+        popover: {
+          title: t('tour.step11.title'),
+          description: t('tour.step11.description'),
+          side: 'right',
+          align: 'start'
+        }
+      },
+      // 12. Atualizar dados
+      {
+        element: '#refresh-btn',
+        popover: {
+          title: t('tour.step12.title'),
+          description: t('tour.step12.description'),
+          side: 'left',
+          align: 'center'
+        }
+      },
+      // 13. Busca rápida
+      {
+        popover: {
+          title: t('tour.step13.title'),
+          description: t('tour.step13.description'),
+          side: 'center',
+          align: 'center'
+        }
+      },
+      // 14. Atalhos de teclado
+      {
+        popover: {
+          title: t('tour.step14.title'),
+          description: t('tour.step14.description'),
+          side: 'center',
+          align: 'center'
+        }
+      },
+      // 15. Finalização
+      {
+        popover: {
+          title: t('tour.step15.title'),
+          description: t('tour.step15.description'),
           side: 'center',
           align: 'center'
         }
@@ -702,6 +553,32 @@ console.log('   - window.simulateFirstTime() : Simular primeira vez (limpa confi
 // Inicialização
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🚀 DOMContentLoaded disparado');
+  
+  // 🪞 Modo espelho: replica exata do compacto em display secundário
+  const urlParams = new URLSearchParams(location.search);
+  isCompactMirror = urlParams.get('compact') === '1';
+  
+  if (isCompactMirror) {
+    const container = document.querySelector('.app-container');
+    const header = document.getElementById('header');
+    const footer = document.querySelector('.footer');
+    if (container) container.classList.add('super-compact-layout');
+    if (header) header.style.display = 'none';
+    if (footer) footer.style.display = 'none';
+    ipcRenderer.on('compact-mirror-stats', (e, stats) => {
+      currentStats = stats;
+      const ids = ['stat-support', 'stat-customer', 'stat-pending', 'stat-inprogress'];
+      const keys = ['waitingForSupport', 'waitingForCustomer', 'pending', 'inProgress'];
+      ids.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = stats[keys[i]] ?? 0;
+      });
+    });
+    await loadConfig();
+    setupCardListeners();
+    return;
+  }
+  
   await loadConfig();
   console.log('✅ Config carregada:', currentConfig);
   
@@ -784,37 +661,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveCurrentState();
   }, 120000); // 2 minutos ao invés de 30s
   
-  // Função para salvar bounds da janela
-  async function saveWindowBounds() {
-    try {
-      const bounds = {
-        width: window.outerWidth || window.innerWidth,
-        height: window.outerHeight || window.innerHeight
-      };
-      await ipcRenderer.invoke('set-window-bounds', bounds);
-      console.log('📐 Window bounds saved:', bounds);
-    } catch (e) {
-      console.error('Error saving window bounds:', e);
-    }
-  }
-  
-  // Salvar bounds quando a janela for redimensionada (com debounce)
-  let boundsTimeout;
-  window.addEventListener('resize', () => {
-    clearTimeout(boundsTimeout);
-    boundsTimeout = setTimeout(saveWindowBounds, 1000); // Salva 1s após parar de redimensionar
-  });
-  
   // Salvar estado antes de fechar o app
   window.addEventListener('beforeunload', (e) => {
-    // Salvar bounds da janela
-    const bounds = {
-      width: window.outerWidth || window.innerWidth,
-      height: window.outerHeight || window.innerHeight
-    };
-    // Usar forma síncrona - enviar via ipcRenderer.send que não aguarda resposta
-    ipcRenderer.send('set-window-bounds', bounds);
-    
     // Usar forma síncrona pois beforeunload não aguarda promises
     const stateToSave = {
       ...currentConfig,
@@ -830,9 +678,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       dailyActivityLastValues: dailyActivityLastValues // Salvar valores quando foi fechado
     };
     
-    // Remover bounds de outras janelas (já salvamos acima)
+    // ❗ NÃO salvar windowBounds aqui - o main.js já cuida disso nos eventos de janela
     delete stateToSave.windowBounds;
     delete stateToSave.jiraWebviewBounds;
+    // Também remover bounds de janelas de usuários
     Object.keys(stateToSave).forEach(key => {
       if (key.startsWith('userMonitorBounds_')) {
         delete stateToSave[key];
@@ -882,24 +731,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Verificar se está configurado
   if (currentConfig.jiraEmail && currentConfig.jiraApiToken) {
-    // Carregar informações do usuário atual
+    console.log('🔑 Credenciais encontradas, iniciando busca de dados...');
     try {
-      const userResult = await ipcRenderer.invoke('get-current-user');
-      if (userResult.success) {
-        currentUser = {
-          displayName: userResult.displayName,
-          emailAddress: userResult.emailAddress,
-          accountId: userResult.accountId
-        };
-        debugLog('👤 Usuário atual carregado:', currentUser.displayName, currentUser.accountId);
-      }
-    } catch (e) {
-      console.error('Erro ao carregar usuário atual:', e);
+      // 🔥 TIMEOUT DE 30 SEGUNDOS PARA NÃO TRAVAR O APP
+      await Promise.race([
+        fetchAndUpdateStats(),
+        new Promise((_, reject) => setTimeout(() => {
+          console.error('⏰ TIMEOUT: A busca demorou mais de 30 segundos!');
+          reject(new Error('Timeout ao buscar dados (30s)'));
+        }, 30000))
+      ]);
+      console.log('✅ Dados carregados, iniciando auto-update...');
+      startAutoUpdate();
+    } catch (error) {
+      console.error('❌ ERRO ao carregar dados iniciais:', error);
+      showError(`Erro ao carregar dados: ${error.message}`);
+      hideLoading();
+      // Iniciar auto-update mesmo com erro para tentar novamente depois
+      startAutoUpdate();
     }
-    
-    await fetchAndUpdateStats();
-    startAutoUpdate();
   } else {
+    console.log('⚠️ Sem credenciais, abrindo painel de configuração...');
     showConfigPanel();
   }
 });
@@ -926,7 +778,7 @@ ipcRenderer.on('exit-compact-mode', () => {
     // Desativar always-on-top ao sair do modo compacto
     ipcRenderer.invoke('set-always-on-top', false);
     
-    showToast('Layout', t('layout.backToNormal'), 'success');
+    showToast('Layout', 'Voltou ao modo normal', 'success');
     saveCurrentState();
   }
 });
@@ -1006,21 +858,6 @@ async function loadConfig() {
     document.getElementById('notify-reassignments').checked = config.notifyReassignments !== false;
     document.getElementById('notify-mentions').checked = config.notifyMentions !== false;
     
-    // Alertas proativos
-    const proactiveAlertsCheckbox = document.getElementById('proactive-alerts');
-    const proactiveAlertsConfig = document.getElementById('proactive-alerts-config');
-    const proactiveAlertsHours = document.getElementById('proactive-alerts-hours');
-    
-    if (proactiveAlertsCheckbox) {
-      proactiveAlertsCheckbox.checked = config.proactiveAlerts === true;
-      if (proactiveAlertsConfig) {
-        proactiveAlertsConfig.style.display = config.proactiveAlerts ? 'block' : 'none';
-      }
-    }
-    if (proactiveAlertsHours && config.proactiveAlertsHours) {
-      proactiveAlertsHours.value = config.proactiveAlertsHours;
-    }
-    
     // Mostrar/ocultar opções de tipos de notificações
     const notificationTypesGroup = document.getElementById('notification-types-group');
     if (notificationTypesGroup) {
@@ -1066,9 +903,16 @@ async function loadConfig() {
       container.classList.add('super-compact-layout');
       const header = document.getElementById('header');
       const footer = document.querySelector('.footer');
+      const proSection = document.getElementById('pro-mode-section');
       if (header) header.style.display = 'none';
       if (footer) footer.style.display = 'none';
+      if (proSection) proSection.style.display = 'none';
       if (exitBtn) exitBtn.style.display = 'flex';
+      // Não chamar na janela espelho - evita loop infinito de criar espelhos
+      if (!isCompactMirror) {
+        ipcRenderer.invoke('resize-window', { width: SUPER_COMPACT_WIDTH, height: SUPER_COMPACT_HEIGHT });
+        ipcRenderer.invoke('set-always-on-top', true);
+      }
     }
     // Se não tem layoutMode mas tem isHorizontalLayout (migração legado)
     else if (isHorizontalLayout) {
@@ -1125,14 +969,10 @@ async function loadConfig() {
       if (webFrame) {
         webFrame.setZoomFactor(currentZoom);
       }
-      
-      // Atualizar label de zoom no header
-      updateZoomLabel();
     }
     
     // Atualizar indicador de usuário monitorado
     updateMonitoredUserIndicator();
-    
   } catch (error) {
     console.error('Erro ao carregar configuração:', error);
   }
@@ -1159,8 +999,6 @@ async function saveConfig() {
       notifyStatusChanges: document.getElementById('notify-status-changes').checked,
       notifyReassignments: document.getElementById('notify-reassignments').checked,
       notifyMentions: document.getElementById('notify-mentions').checked,
-      proactiveAlerts: document.getElementById('proactive-alerts')?.checked || false,
-      proactiveAlertsHours: parseInt(document.getElementById('proactive-alerts-hours')?.value) || 2,
       // monitorOtherUser e otherUserEmail agora são gerenciados pelo botão no header
       monitorOtherUser: currentConfig.monitorOtherUser || false,
       otherUserEmail: currentConfig.otherUserEmail || '',
@@ -1193,9 +1031,6 @@ async function saveConfig() {
     // Aplicar Modo Pro
     isProMode = config.proMode;
     updateProModeUI();
-    
-    // Reiniciar verificação de alertas proativos (caso configuração mudou)
-    startProactiveAlertsCheck();
     
     // Atualizar indicador de usuário monitorado
     updateMonitoredUserIndicator();
@@ -1233,11 +1068,11 @@ async function saveConfig() {
       // Se não for primeira vez, carregar dados normalmente
       await fetchAndUpdateStats();
       startAutoUpdate();
-      showToast(t('general.success'), t('config.saved'), 'success');
+      showToast('Sucesso!', 'Configurações salvas com sucesso', 'success');
     }
   } catch (error) {
     console.error('Erro ao salvar configuração:', error);
-    showToast(t('general.error'), t('config.saveError'), 'error');
+    showToast('Erro', 'Não foi possível salvar as configurações', 'error');
   }
 }
 
@@ -1329,7 +1164,7 @@ async function removeUserFromHistory(email) {
   // Atualizar dropdown
   updateUserListDropdown();
   
-  showToast(t('general.removed'), `${email} ${t('addUser.removed')}`, 'success');
+  showToast('Removido', `${email} removido permanentemente`, 'success');
 }
 
 // Abrir usuário em nova janela
@@ -1338,10 +1173,10 @@ async function openUserInNewWindow(email) {
   
   try {
     await ipcRenderer.invoke('open-user-window', email);
-    showToast(t('general.newWindow'), `${t('userMonitor.monitoring')} ${email} ${t('addUser.monitoringInNewWindow')}`, 'success');
+    showToast('Nova Janela', `Monitorando ${email} em nova janela`, 'success');
   } catch (error) {
     console.error('Erro ao abrir nova janela:', error);
-    showToast(t('general.error'), t('general.error'), 'error');
+    showToast('Erro', 'Não foi possível abrir nova janela', 'error');
   }
 }
 
@@ -1479,7 +1314,7 @@ async function switchMonitoredUser(email) {
   debugLog('🗑️ Estados de tickets resetados ao trocar usuário');
   
   // Recarregar stats e notificações do usuário selecionado
-  showToast(t('general.success'), `${t('addUser.nowMonitoring')} ${email || t('userMonitor.you')}`, 'success');
+  showToast('Sucesso!', `Agora monitorando ${email || 'você'}`, 'success');
   await fetchAndUpdateStats();
   
   // Sempre recarregar notificações ao trocar usuário
@@ -1526,11 +1361,11 @@ function applyDensityMode(mode, showNotification = true) {
   
   if (showNotification) {
     const modeNames = {
-      default: t('density.default'),
-      compact: t('density.compact'),
-      comfortable: t('density.comfortable')
+      default: 'Padrão',
+      compact: 'Compacto',
+      comfortable: 'Confortável'
     };
-    showToast(t('tooltip.densityMode'), `${modeNames[mode] || mode} ${t('density.modeActivated')}`, 'info');
+    showToast('Modo de Densidade', `Modo ${modeNames[mode] || mode} ativado`, 'info');
   }
   
   debugLog('📐 Modo de densidade aplicado:', mode);
@@ -1570,14 +1405,11 @@ function setupEventListeners() {
   document.getElementById('user-monitor-btn').addEventListener('click', toggleUserMonitorDropdown);
   document.getElementById('notifications-btn').addEventListener('click', toggleNotifications);
   document.getElementById('docs-btn').addEventListener('click', toggleDocsDropdown);
-  document.getElementById('zoom-btn').addEventListener('click', toggleZoomDropdown);
-  document.getElementById('search-btn')?.addEventListener('click', () => toggleSearchContainer());
+  document.getElementById('zoom-in-btn').addEventListener('click', zoomIn);
+  document.getElementById('zoom-out-btn').addEventListener('click', zoomOut);
   document.getElementById('toggle-density-btn').addEventListener('click', toggleDensityMode);
   document.getElementById('minimize-btn').addEventListener('click', () => ipcRenderer.invoke('minimize-window'));
   document.getElementById('close-btn').addEventListener('click', () => ipcRenderer.invoke('close-window'));
-  
-  // Zoom dropdown controls
-  setupZoomDropdown();
   
   // Menu items
   document.getElementById('menu-pro').addEventListener('click', () => {
@@ -1593,15 +1425,15 @@ function setupEventListeners() {
     hideMenu();
   });
   document.getElementById('menu-okta').addEventListener('click', () => {
-    ipcRenderer.invoke('open-url', 'https://your-company.okta.com/');
+    ipcRenderer.invoke('open-url', 'https://nubank.okta.com/');
     hideMenu();
   });
   document.getElementById('menu-jamf').addEventListener('click', () => {
-    ipcRenderer.invoke('open-url', 'https://your-company.jamfcloud.com/');
+    ipcRenderer.invoke('open-url', 'https://nubank.jamfcloud.com/');
     hideMenu();
   });
   document.getElementById('menu-jira-portal').addEventListener('click', () => {
-    ipcRenderer.invoke('open-url', 'https://your-company.atlassian.net/servicedesk/customer/portals');
+    ipcRenderer.invoke('open-url', 'https://nubank.atlassian.net/servicedesk/customer/portals');
     hideMenu();
   });
   document.getElementById('menu-google-admin').addEventListener('click', () => {
@@ -1640,16 +1472,8 @@ function setupEventListeners() {
     showThemeCustomizer();
     hideMenu();
   });
-  
-  // Botão Modo Focus
-  document.getElementById('menu-focus-mode')?.addEventListener('click', () => {
-    toggleFocusMode();
-    hideMenu();
-  });
-  
-  // Botão Modo Compacto
-  document.getElementById('menu-compact-mode')?.addEventListener('click', () => {
-    toggleCompactMode();
+  document.getElementById('menu-toggle-layout').addEventListener('click', () => {
+    toggleLayout();
     hideMenu();
   });
   
@@ -1670,6 +1494,9 @@ function setupEventListeners() {
       if (footer) footer.style.display = 'flex';
       if (proSection && isProMode) proSection.style.display = 'block';
       exitSuperCompactBtn.style.display = 'none';
+      
+      ipcRenderer.invoke('resize-window', { width: 420, height: 700 });
+      ipcRenderer.invoke('set-always-on-top', false);
       
       showToast('Layout', 'Voltou ao modo normal', 'success');
       saveCurrentState();
@@ -1720,17 +1547,6 @@ function setupEventListeners() {
     notificationTypesGroup.style.display = e.target.checked ? 'block' : 'none';
   });
   
-  // Mostrar/ocultar opções de alertas proativos
-  const proactiveAlertsCheckbox = document.getElementById('proactive-alerts');
-  if (proactiveAlertsCheckbox) {
-    proactiveAlertsCheckbox.addEventListener('change', (e) => {
-      const proactiveAlertsConfig = document.getElementById('proactive-alerts-config');
-      if (proactiveAlertsConfig) {
-        proactiveAlertsConfig.style.display = e.target.checked ? 'block' : 'none';
-      }
-    });
-  }
-  
   // Refresh button
   document.getElementById('refresh-btn').addEventListener('click', fetchAndUpdateStats);
   
@@ -1768,7 +1584,7 @@ function setupEventListeners() {
   if (simCardsCountBtn) {
     simCardsCountBtn.addEventListener('click', () => {
       if (currentStats && currentStats.simcardPendingTickets && currentStats.simcardPendingTickets.jql) {
-        const jiraUrl = currentConfig.jiraUrl || 'https://your-company.atlassian.net';
+        const jiraUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
         ipcRenderer.send('open-url', `${jiraUrl}/issues/?filter=52128`);
       }
     });
@@ -1778,7 +1594,7 @@ function setupEventListeners() {
   const evaluatedTicketsCountBtn = document.getElementById('evaluated-tickets-count-btn');
   if (evaluatedTicketsCountBtn) {
     evaluatedTicketsCountBtn.addEventListener('click', () => {
-      const jiraUrl = currentConfig.jiraUrl || 'https://your-company.atlassian.net';
+      const jiraUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
       ipcRenderer.send('open-url', `${jiraUrl}/issues/?filter=52358`);
     });
   }
@@ -1921,6 +1737,57 @@ function setupEventListeners() {
       loadPerformanceDashboard();
     });
   }
+
+  // Visão gestor: expandir seção, autocomplete do analista, atualizar, expandir detalhes
+  if (typeof setupManagerAnalystAutocomplete === 'function') setupManagerAnalystAutocomplete();
+  const expandManagerBtn = document.getElementById('expand-manager-metrics');
+  const managerContent = document.getElementById('manager-metrics-content');
+  if (expandManagerBtn && managerContent) {
+    expandManagerBtn.addEventListener('click', () => {
+      const isExpanded = expandManagerBtn.classList.contains('expanded');
+      if (isExpanded) {
+        expandManagerBtn.classList.remove('expanded');
+        managerContent.style.display = 'none';
+        hideManagerAnalystSuggestions();
+      } else {
+        expandManagerBtn.classList.add('expanded');
+        managerContent.style.display = 'block';
+        const email = getManagerAnalystEmail();
+        if (email) loadManagerMetrics(email);
+      }
+    });
+  }
+
+  const managerRefreshBtn = document.getElementById('manager-metrics-refresh-btn');
+  if (managerRefreshBtn) {
+    managerRefreshBtn.addEventListener('click', () => {
+      const email = getManagerAnalystEmail();
+      const input = document.getElementById('manager-analyst-input');
+      const dataEmail = input && input.getAttribute('data-selected-email');
+      const toLoad = dataEmail || (input && input.value && input.value.trim().includes('@') ? input.value.trim() : email);
+      loadManagerMetrics(toLoad || null);
+    });
+  }
+
+  const managerExpandDetailsBtn = document.getElementById('manager-expand-details-btn');
+  const managerPerformanceDetails = document.getElementById('manager-performance-details');
+  if (managerExpandDetailsBtn && managerPerformanceDetails) {
+    managerExpandDetailsBtn.addEventListener('click', () => {
+      const isExpanded = managerExpandDetailsBtn.classList.contains('expanded');
+      if (isExpanded) {
+        managerExpandDetailsBtn.classList.remove('expanded');
+        managerPerformanceDetails.style.display = 'none';
+        const textEl = managerExpandDetailsBtn.querySelector('.manager-expand-details-text');
+        if (textEl) textEl.textContent = 'Ver mais detalhes';
+      } else {
+        managerExpandDetailsBtn.classList.add('expanded');
+        managerPerformanceDetails.style.display = 'block';
+        const textEl = managerExpandDetailsBtn.querySelector('.manager-expand-details-text');
+        if (textEl) textEl.textContent = 'Ocultar detalhes';
+        if (managerMetricsCache) generateManagerCharts(managerMetricsCache);
+      }
+    });
+  }
   
   // Timer & Pomodoro
   const timerStartBtn = document.getElementById('timer-start-btn');
@@ -1985,12 +1852,9 @@ function setupKeyboardShortcuts() {
     } else if (isCmdOrCtrl && e.key === 'p') {
       e.preventDefault();
       toggleProMode();
-    } else if (isCmdOrCtrl && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+    } else if (isCmdOrCtrl && e.key === 'l') {
       e.preventDefault();
-      toggleFocusMode();
-    } else if (isCmdOrCtrl && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
-      e.preventDefault();
-      toggleCompactMode();
+      toggleLayout();
     } else if (isCmdOrCtrl && (e.key === '=' || e.key === '+')) {
       e.preventDefault();
       zoomIn();
@@ -2051,8 +1915,29 @@ function setupKeyboardShortcuts() {
       } else if (document.getElementById('export-modal')?.style.display === 'flex') {
         hideExportModal();
       } else if (layoutMode === 'super-compact') {
-        // Se estiver no modo super compacto, ESC chama toggleCompactMode para restaurar tamanho
-        toggleCompactMode();
+        // Se estiver no modo super compacto, ESC volta para o modo normal
+        layoutMode = 'normal';
+        const container = document.querySelector('.app-container');
+        const header = document.getElementById('header');
+        const footer = document.querySelector('.footer');
+        const proSection = document.getElementById('pro-mode-section');
+        const exitBtn = document.getElementById('super-compact-exit-btn');
+        
+        container.classList.remove('super-compact-layout');
+        container.classList.remove('horizontal-layout');
+        if (header) header.style.display = 'flex';
+        if (footer) footer.style.display = 'flex';
+        if (proSection && isProMode) proSection.style.display = 'block';
+        if (exitBtn) exitBtn.style.display = 'none';
+        
+        // Restaurar tamanho normal
+        ipcRenderer.invoke('resize-window', { width: 420, height: 700 });
+        
+        // Desativar always-on-top ao sair do modo compacto
+        ipcRenderer.invoke('set-always-on-top', false);
+        
+        showToast('Layout', 'Voltou ao modo normal', 'info');
+        saveCurrentState();
       } else {
         ipcRenderer.invoke('minimize-window');
       }
@@ -2082,19 +1967,6 @@ function hideMenu() {
   document.getElementById('menu-dropdown').style.display = 'none';
 }
 
-function hideAllDropdowns() {
-  document.getElementById('menu-dropdown').style.display = 'none';
-  document.getElementById('notifications-preview').style.display = 'none';
-  document.getElementById('docs-dropdown').style.display = 'none';
-  document.getElementById('user-monitor-dropdown').style.display = 'none';
-  document.getElementById('zoom-dropdown').style.display = 'none';
-}
-
-// Alias para o botão de busca no header
-function toggleSearchContainer() {
-  toggleSearch();
-}
-
 // Notificações
 function toggleNotifications() {
   const preview = document.getElementById('notifications-preview');
@@ -2107,7 +1979,7 @@ function toggleNotifications() {
 
 function viewAllNotifications() {
   // Abrir o Jira na página de notificações
-  const baseUrl = currentConfig.jiraUrl || 'https://your-company.atlassian.net';
+  const baseUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
   const url = `${baseUrl}/secure/ViewProfile.jspa`;
   ipcRenderer.invoke('open-url', url);
   
@@ -2122,29 +1994,132 @@ async function resetNotificationHistory() {
   // Recarregar notificações
   await loadNotifications();
   
-  showToast(t('notifications.title'), t('notifications.historyReset'), 'success');
+  showToast('Notificações', 'Histórico resetado - todas as notificações serão mostradas novamente', 'success');
+}
+
+/**
+ * 🔔 Função helper para mostrar notificações nativas do sistema
+ * Usa a API nativa do Electron para melhor suporte no macOS
+ * @param {Object} options - Opções da notificação
+ * @param {string} options.title - Título da notificação
+ * @param {string} options.body - Corpo da notificação
+ * @param {string} [options.icon] - URL ou caminho do ícone
+ * @param {string} [options.tag] - Identificador único para a notificação
+ * @param {boolean} [options.silent] - Se deve ser silenciosa
+ * @param {boolean} [options.onClick] - Se deve focar a janela ao clicar
+ * @param {string} [options.urgency] - Urgência: 'low', 'normal', 'critical'
+ */
+async function showNativeNotification(options) {
+  try {
+    // Verificar se notificações desktop estão habilitadas na config
+    if (!currentConfig.desktopNotifications) {
+      debugLog('🔕 Notificações desktop desabilitadas na configuração');
+      return false;
+    }
+
+    // Verificar se estamos no Electron (tem ipcRenderer disponível)
+    if (typeof ipcRenderer !== 'undefined' && ipcRenderer.invoke) {
+      // Usar API nativa do Electron via IPC
+      const result = await ipcRenderer.invoke('show-native-notification', {
+        title: options.title || 'Jira Monitor',
+        body: options.body || '',
+        icon: options.icon || undefined,
+        tag: options.tag || undefined,
+        silent: options.silent === true || currentConfig.soundNotifications === false,
+        onClick: options.onClick === true,
+        urgency: options.urgency || 'normal'
+      });
+      
+      if (result.success) {
+        debugLog('✅ Notificação nativa enviada via IPC:', options.title);
+        return true;
+      } else {
+        console.warn('⚠️ Falha ao enviar notificação nativa via IPC:', result.error);
+        // Fallback para Web Notification API
+        return showWebNotification(options);
+      }
+    } else {
+      // Fallback: usar Web Notification API
+      return showWebNotification(options);
+    }
+  } catch (error) {
+    console.error('❌ Erro ao mostrar notificação nativa:', error);
+    // Fallback para Web Notification API
+    return showWebNotification(options);
+  }
+}
+
+/**
+ * Fallback: Mostrar notificação usando Web Notification API
+ * @param {Object} options - Opções da notificação
+ */
+async function showWebNotification(options) {
+  try {
+    // Verificar se Web Notifications estão disponíveis
+    if (!('Notification' in window)) {
+      console.warn('⚠️ Web Notifications não suportadas');
+      return false;
+    }
+
+    // Solicitar permissão se necessário
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        console.warn('⚠️ Permissão de notificação negada');
+        return false;
+      }
+    } else if (Notification.permission === 'denied') {
+      console.warn('⚠️ Permissão de notificação negada anteriormente');
+      return false;
+    }
+
+    // Criar notificação web
+    const notification = new Notification(options.title || 'Jira Monitor', {
+      body: options.body || '',
+      icon: options.icon || 'https://nubank.atlassian.net/favicon.ico',
+      tag: options.tag || undefined,
+      requireInteraction: false,
+      silent: options.silent === true || currentConfig.soundNotifications === false
+    });
+
+    // Handler de clique
+    if (options.onClick) {
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    }
+
+    debugLog('✅ Web notification enviada:', options.title);
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao mostrar web notification:', error);
+    return false;
+  }
 }
 
 async function testDesktopNotification() {
   debugLog('🧪 Testando notificação desktop...');
   
-  // Usar notificação nativa do macOS via backend
+  // Criar notificação de teste usando a função helper
   try {
-    const result = await ipcRenderer.invoke('show-notification', 
-      '🧪 Jira Monitor - Teste', 
-      'Se você está vendo isso, as notificações estão funcionando! ✅'
-    );
+    await showNativeNotification({
+      title: '🧪 Teste de Notificação - Jira Monitor',
+      body: 'Se você está vendo isso, as notificações estão funcionando! ✅',
+      tag: 'test-notification',
+      onClick: true
+    });
     
     // Tocar som se habilitado
     if (currentConfig.soundNotifications !== false) {
       playNotificationSound();
     }
     
-    showToast(t('general.success'), t('notifications.testSent'), 'success');
+    showToast('Sucesso', 'Notificação de teste enviada! Verifique seu sistema.', 'success');
     debugLog('✅ Notificação de teste enviada com sucesso');
   } catch (error) {
     console.error('❌ Erro ao criar notificação:', error);
-    showToast(t('general.error'), `${t('notifications.testError')} ${error.message}`, 'error');
+    showToast('Erro', `Erro ao criar notificação: ${error.message}`, 'error');
   }
 }
 
@@ -2180,7 +2155,7 @@ async function clearAllNotifications() {
   window.currentNotifications = [];
   internalNotifications = [];
   
-  showToast(t('notifications.title'), t('notifications.cleared'), 'success');
+  showToast('Notificações', 'Notificações limpas', 'success');
 }
 
 async function removeNotification(index) {
@@ -2225,11 +2200,25 @@ async function removeNotification(index) {
 // Docs Dropdown
 function toggleDocsDropdown() {
   const dropdown = document.getElementById('docs-dropdown');
+  const docsBtn = document.getElementById('docs-btn');
   const isVisible = dropdown.style.display === 'block';
   
   // Fechar outros dropdowns/menus
   hideMenu();
   document.getElementById('notifications-preview').style.display = 'none';
+  
+  if (!isVisible) {
+    // Posicionar de forma responsiva: se o botão estiver perto da borda esquerda, alinhar dropdown à esquerda do wrapper
+    const btnRect = docsBtn.getBoundingClientRect();
+    const dropdownWidth = 320;
+    if (btnRect.left < dropdownWidth) {
+      dropdown.style.right = 'auto';
+      dropdown.style.left = '0';
+    } else {
+      dropdown.style.left = 'auto';
+      dropdown.style.right = '0';
+    }
+  }
   
   dropdown.style.display = isVisible ? 'none' : 'block';
 }
@@ -2276,13 +2265,13 @@ async function confirmAddUser() {
   const email = input.value.trim();
   
   if (!email) {
-    showToast(t('general.warning'), t('addUser.invalidEmail'), 'warning');
+    showToast('Atenção', 'Por favor, digite um e-mail válido', 'warning');
     return;
   }
   
   // Validar formato de email básico
   if (!email.includes('@')) {
-    showToast(t('general.error'), t('addUser.invalidEmailShort'), 'error');
+    showToast('Erro', 'E-mail inválido', 'error');
     return;
   }
   
@@ -2298,42 +2287,31 @@ async function loadNotifications() {
       jiraEmail: currentConfig.jiraEmail
     });
     
-    debugLog('🔔 Notificações internas existentes:', internalNotifications.length, internalNotifications);
-    
     const result = await ipcRenderer.invoke('get-recent-notifications', 15);
-    let jiraNotifications = [];
+    let allNotifications = [];
     
-    if (result && result.success) {
-      jiraNotifications = result.data || [];
-      debugLog('✅ Notificações do Jira:', jiraNotifications.length);
-    } else {
-      debugLog('⚠️ Erro ao buscar notificações do Jira:', result?.error);
+    if (result.success) {
+      allNotifications = result.data;
+      debugLog('✅ Notificações do Jira:', allNotifications.length);
     }
+    
+    // Adicionar notificações internas (mudanças de tickets)
+    allNotifications = [...internalNotifications, ...allNotifications];
+    debugLog('✅ Total (Jira + Internas):', allNotifications.length, '(Internas:', internalNotifications.length, ')');
     
     // Carregar notificações limpas do config
     const config = await ipcRenderer.invoke('get-config');
     const clearedNotifications = config.clearedNotifications || [];
     
-    // Filtrar notificações do Jira que já foram limpas
-    const filteredJiraNotifications = jiraNotifications.filter(notif => {
+    // Filtrar notificações que já foram limpas
+    const filteredNotifications = allNotifications.filter(notif => {
       const notifId = `${notif.ticketKey}-${notif.commentId || notif.id}`;
       return !clearedNotifications.includes(notifId);
     });
     
-    // Filtrar notificações internas que já foram limpas
-    const filteredInternalNotifications = internalNotifications.filter(notif => {
-      const notifId = `${notif.ticketKey}-${notif.commentId || notif.id}`;
-      return !clearedNotifications.includes(notifId);
-    });
+    debugLog('✅ Notificações após filtrar limpas:', filteredNotifications.length);
     
-    // Combinar: internas primeiro, depois do Jira
-    const allNotifications = [...filteredInternalNotifications, ...filteredJiraNotifications];
-    
-    debugLog('✅ Total notificações:', allNotifications.length, 
-      '(Internas:', filteredInternalNotifications.length, 
-      ', Jira:', filteredJiraNotifications.length, ')');
-    
-    displayNotifications(allNotifications);
+    displayNotifications(filteredNotifications);
   } catch (error) {
     console.error('Erro ao carregar notificações:', error);
   }
@@ -2455,10 +2433,10 @@ function getTimeAgo(dateString) {
   const now = new Date();
   const seconds = Math.floor((now - date) / 1000);
   
-  if (seconds < 60) return t('time.now', 'now');
-  if (seconds < 3600) return t('time.minutesAgo', '{time} minutes ago').replace('{time}', Math.floor(seconds / 60));
-  if (seconds < 86400) return t('time.hoursAgo', '{time} hours ago').replace('{time}', Math.floor(seconds / 3600));
-  return t('time.daysAgo', '{time} days ago').replace('{time}', Math.floor(seconds / 86400));
+  if (seconds < 60) return 'agora';
+  if (seconds < 3600) return `há ${Math.floor(seconds / 60)} minutos`;
+  if (seconds < 86400) return `há ${Math.floor(seconds / 3600)} horas`;
+  return `há ${Math.floor(seconds / 86400)} dias`;
 }
 
 // ===================================
@@ -2473,8 +2451,8 @@ function showBadgeTickets(type) {
   }
   
   const title = type === 'sla' 
-    ? t('badge.slaTitle', '⏰ Tickets with SLA Alert (expiring in 30 minutes)')
-    : t('badge.oldTitle', '📅 Old Tickets (no update for 7+ days)');
+    ? '⏰ Tickets com SLA em Alerta (vencendo em até 4 horas)'
+    : '📅 Tickets Antigos (sem atualização há 7+ dias)';
   
   const modalHtml = `
     <div class="badge-modal-overlay" id="badge-modal-overlay" onclick="closeBadgeModal()">
@@ -2493,7 +2471,7 @@ function showBadgeTickets(type) {
               timeClass = slaInfo.class;
               urgencyIcon = slaInfo.icon;
             } else {
-              timeInfo = `${t('time.lastUpdate', 'Last update')}: ${getTimeAgo(ticket.fields.updated)}`;
+              timeInfo = `Última atualização: ${getTimeAgo(ticket.fields.updated)}`;
               timeClass = 'old';
               urgencyIcon = '📅';
             }
@@ -2512,7 +2490,7 @@ function showBadgeTickets(type) {
                       <path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
                     </svg>
                   </button>
-                  <button class="badge-ticket-btn" onclick="event.stopPropagation(); ipcRenderer.invoke('open-url', 'https://your-company.atlassian.net/browse/${ticket.key}');" title="Abrir no Jira">
+                  <button class="badge-ticket-btn" onclick="event.stopPropagation(); ipcRenderer.invoke('open-url', 'https://nubank.atlassian.net/browse/${ticket.key}');" title="Abrir no Jira">
                     <svg viewBox="0 0 24 24" width="16" height="16">
                       <path fill="currentColor" d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
                     </svg>
@@ -2544,34 +2522,37 @@ function getSlaInfo(dueDateString) {
   const diffMs = dueDate - now;
   const diffMinutes = Math.floor(diffMs / 60000);
   
-  // Thresholds:
-  // 🔴 overdue: < 0 (estourado)
-  // 🟡 warning: ≤ 30 min
-  // 🟢 safe: > 30 min
-  
   if (diffMinutes < 0) {
     return {
       text: `SLA ESTOURADO (atrasado ${Math.abs(diffMinutes)} min)`,
       class: 'overdue',
-      icon: '🔴'
+      icon: '🚨'
     };
   }
   
-  if (diffMinutes <= 30) {
+  if (diffMinutes < 30) {
     return {
-      text: `ATENÇÃO: Vence em ${diffMinutes} minutos`,
-      class: 'warning',
-      icon: '🟡'
+      text: `CRÍTICO: Vence em ${diffMinutes} minutos`,
+      class: 'critical',
+      icon: '🔴'
     };
   }
   
   const diffHours = Math.floor(diffMinutes / 60);
   const remainingMinutes = diffMinutes % 60;
   
+  if (diffMinutes < 120) {
+    return {
+      text: `ATENÇÃO: Vence em ${diffHours}h ${remainingMinutes}min`,
+      class: 'warning',
+      icon: '⚠️'
+    };
+  }
+  
   return {
     text: `Vence em ${diffHours}h ${remainingMinutes}min`,
-    class: 'safe',
-    icon: '🟢'
+    class: 'normal',
+    icon: '⏰'
   };
 }
 
@@ -2721,7 +2702,7 @@ function toggleLayout() {
     container.classList.add('horizontal-layout');
     container.classList.remove('super-compact-layout');
     if (exitBtn) exitBtn.style.display = 'none';
-    showToast('Layout', t('layout.horizontal'), 'info');
+    showToast('Layout', 'Modo Horizontal ativo', 'info');
   } else if (layoutMode === 'horizontal') {
     layoutMode = 'super-compact';
     container.classList.remove('horizontal-layout');
@@ -2732,13 +2713,23 @@ function toggleLayout() {
     if (proSection) proSection.style.display = 'none';
     if (exitBtn) exitBtn.style.display = 'none'; // Não mostrar mais o botão flutuante
     
-    // Redimensionar janela para 192x72
-    ipcRenderer.invoke('resize-window', { width: 192, height: 72 });
+    // Redimensionar janela para comportar todos os cards do modo compacto
+    ipcRenderer.invoke('resize-window', { width: SUPER_COMPACT_WIDTH, height: SUPER_COMPACT_HEIGHT });
     
     // Ativar always-on-top para janela ficar sempre visível
     ipcRenderer.invoke('set-always-on-top', true);
     
-    showToast('Layout', t('layout.superCompact'), 'info');
+    // Enviar stats atuais para janelas espelho (multi-display)
+    if (currentStats) {
+      ipcRenderer.send('compact-mirror-update-stats', {
+        waitingForSupport: currentStats.waitingForSupport || 0,
+        waitingForCustomer: currentStats.waitingForCustomer || 0,
+        pending: currentStats.pending || 0,
+        inProgress: currentStats.inProgress || 0
+      });
+    }
+    
+    showToast('Layout', 'Modo Super Compacto ativo - Sempre visível', 'info');
   } else {
     layoutMode = 'normal';
     container.classList.remove('horizontal-layout');
@@ -2755,11 +2746,14 @@ function toggleLayout() {
     // Desativar always-on-top ao voltar ao modo normal
     ipcRenderer.invoke('set-always-on-top', false);
     
-    showToast('Layout', t('layout.normal'), 'info');
+    showToast('Layout', 'Modo Normal ativo', 'info');
   }
   
   // Atualizar flag legado
   isHorizontalLayout = (layoutMode === 'horizontal');
+  
+  // 🎯 Disparar evento customizado para o tour detectar mudança de layout
+  window.dispatchEvent(new CustomEvent('layoutChanged', { detail: { layoutMode } }));
   
   // Salvar preferência
   saveCurrentState();
@@ -2797,103 +2791,8 @@ function applyZoom() {
     webFrame.setZoomFactor(currentZoom);
   }
   
-  // Atualizar label de zoom no header
-  updateZoomLabel();
-  
   // Feedback visual
   showZoomIndicator();
-}
-
-function updateZoomLabel() {
-  const zoomLabel = document.getElementById('zoom-label');
-  if (zoomLabel) {
-    zoomLabel.textContent = `${Math.round(currentZoom * 100)}%`;
-  }
-  
-  // Atualizar estado ativo nos presets
-  document.querySelectorAll('.zoom-preset').forEach(btn => {
-    const zoomValue = parseInt(btn.dataset.zoom) / 100;
-    btn.classList.toggle('active', zoomValue === currentZoom);
-  });
-  
-  // Atualizar slider
-  const zoomSlider = document.getElementById('zoom-slider');
-  if (zoomSlider) {
-    zoomSlider.value = Math.round(currentZoom * 100);
-  }
-}
-
-function toggleZoomDropdown(e) {
-  e?.stopPropagation();
-  const dropdown = document.getElementById('zoom-dropdown');
-  const isVisible = dropdown.style.display !== 'none';
-  
-  // Fechar outros dropdowns
-  hideAllDropdowns();
-  
-  if (!isVisible) {
-    dropdown.style.display = 'block';
-    updateZoomLabel();
-  }
-}
-
-function setupZoomDropdown() {
-  // Presets de zoom
-  document.querySelectorAll('.zoom-preset').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const zoomValue = parseInt(btn.dataset.zoom) / 100;
-      const index = zoomLevels.indexOf(zoomValue);
-      if (index !== -1) {
-        currentZoomIndex = index;
-        applyZoom();
-      } else {
-        // Se não está nos presets exatos, encontrar o mais próximo
-        setZoomValue(zoomValue);
-      }
-    });
-  });
-  
-  // Slider de zoom
-  const zoomSlider = document.getElementById('zoom-slider');
-  if (zoomSlider) {
-    zoomSlider.addEventListener('input', (e) => {
-      const zoomValue = parseInt(e.target.value) / 100;
-      setZoomValue(zoomValue);
-    });
-  }
-  
-  // Fechar dropdown ao clicar fora
-  document.addEventListener('click', (e) => {
-    const dropdown = document.getElementById('zoom-dropdown');
-    const zoomBtn = document.getElementById('zoom-btn');
-    if (dropdown && !dropdown.contains(e.target) && !zoomBtn?.contains(e.target)) {
-      dropdown.style.display = 'none';
-    }
-  });
-}
-
-function setZoomValue(value) {
-  // Encontrar o índice mais próximo nos zoomLevels
-  let closestIndex = 0;
-  let minDiff = Math.abs(zoomLevels[0] - value);
-  
-  zoomLevels.forEach((level, index) => {
-    const diff = Math.abs(level - value);
-    if (diff < minDiff) {
-      minDiff = diff;
-      closestIndex = index;
-    }
-  });
-  
-  currentZoomIndex = closestIndex;
-  currentZoom = zoomLevels[currentZoomIndex];
-  
-  if (webFrame) {
-    webFrame.setZoomFactor(currentZoom);
-  }
-  
-  updateZoomLabel();
 }
 
 function showZoomIndicator() {
@@ -2998,6 +2897,9 @@ async function toggleProMode() {
   await saveCurrentState(); // Salvar automaticamente
   debugLog('💾 Modo Pro alterado e salvo:', isProMode);
   updateProModeUI();
+  
+  // 🎯 Disparar evento customizado para o tour detectar mudança de Modo Pro
+  window.dispatchEvent(new CustomEvent('proModeChanged', { detail: { isProMode } }));
 }
 
 function updateProModeUI() {
@@ -3359,20 +3261,14 @@ async function checkForMentions() {
         );
         
         // Notificação desktop (se habilitada e se notificações de menção estão ativas)
-        if (currentConfig.desktopNotifications && 
-            currentConfig.notifyMentions !== false && 
-            Notification.permission === 'granted') {
-          const notification = new Notification(`📢 Você foi mencionado - ${mention.key}`, {
+        if (currentConfig.desktopNotifications && currentConfig.notifyMentions !== false) {
+          showNativeNotification({
+            title: `📢 Você foi mencionado - ${mention.key}`,
             body: `${author}: ${mention.fields.summary}`,
-            icon: 'https://your-company.atlassian.net/favicon.ico',
+            icon: 'https://nubank.atlassian.net/favicon.ico',
             tag: `mention-${mention.key}-${comment.id}`,
-            requireInteraction: false
+            onClick: true
           });
-          
-          notification.onclick = () => {
-            openTicketPreview(mention.key);
-            notification.close();
-          };
           
           if (currentConfig.soundNotifications) {
             playNotificationSound();
@@ -3402,9 +3298,7 @@ async function fetchAndUpdateStats() {
     checkDailyReset();
     
     debugLog('🚀 === INICIANDO FETCH DE STATS ===');
-    const otherUserEmail = currentConfig.monitorOtherUser ? currentConfig.otherUserEmail : null;
-    debugLog('👤 Monitorando:', otherUserEmail || 'você (currentUser)');
-    const result = await ipcRenderer.invoke('fetch-jira-stats', otherUserEmail);
+    const result = await ipcRenderer.invoke('fetch-jira-stats', currentConfig);
     
     if (result.success) {
       debugLog('📊 Dados recebidos do Jira:', {
@@ -3630,10 +3524,8 @@ function updateTrayWithTickets(stats) {
     normal: ticketsData.normal.length
   });
 
-  // Enviar para o backend atualizar o tray
-  ipcRenderer.invoke('update-tray', ticketsData).catch(err => {
-    console.warn('Erro ao atualizar tray:', err);
-  });
+  // Enviar para o main process atualizar o tray
+  ipcRenderer.send('update-tray-tickets', ticketsData);
 }
 
 // Extrair informações de SLA do ticket
@@ -3690,10 +3582,10 @@ function extractSLAInfo(ticket) {
       // SLA estourado
       isBreached = true;
       displayText = `${mostCriticalSla.label}: Estourado há ${diffHours}h ${diffMinutes}m`;
-    } else if (diffMs <= 30 * 60 * 1000) {
-      // Próximo de estourar (≤ 30 min)
+    } else if (diffMs < 4 * 60 * 60 * 1000) {
+      // Próximo de estourar (menos de 4h)
       isNearBreach = true;
-      displayText = `${mostCriticalSla.label}: Estoura em ${diffMinutes}m`;
+      displayText = `${mostCriticalSla.label}: Estoura em ${diffHours}h ${diffMinutes}m`;
     } else {
       displayText = `${mostCriticalSla.label}: ${diffHours}h ${diffMinutes}m restantes`;
     }
@@ -3706,7 +3598,7 @@ function extractSLAInfo(ticket) {
       isNearBreach = true;
       displayText = 'SLA em alerta';
       // Tentar estimar tempo restante se não temos dados precisos
-      timeRemaining = 30 * 60 * 1000; // ~30min como estimativa
+      timeRemaining = 2 * 60 * 60 * 1000; // ~2h como estimativa
     }
   }
 
@@ -3774,6 +3666,16 @@ function updateUI(stats) {
   animateNumber('stat-pending', stats.pending || 0);
   animateNumber('stat-inprogress', stats.inProgress || 0);
   
+  // Sincronizar stats com janelas espelho (modo compacto em múltiplos displays)
+  if (layoutMode === 'super-compact') {
+    ipcRenderer.send('compact-mirror-update-stats', {
+      waitingForSupport: stats.waitingForSupport || 0,
+      waitingForCustomer: stats.waitingForCustomer || 0,
+      pending: stats.pending || 0,
+      inProgress: stats.inProgress || 0
+    });
+  }
+  
   // 🔬 Atualizar modo micro se ativo
   if (isMicroMode) {
     updateMicroStats();
@@ -3790,7 +3692,7 @@ function updateUI(stats) {
   if (stats.slaAlerts > 0 && currentConfig.alertSla !== false) {
     slaBadge.style.display = 'inline-flex';
     slaBadge.style.cursor = 'pointer';
-    slaBadge.title = `${stats.slaAlerts} ticket(s) com SLA em alerta (até 30min ou atrasados) - Clique para ver detalhes`;
+    slaBadge.title = `${stats.slaAlerts} ticket(s) com SLA em alerta (até 4h ou atrasados) - Clique para ver detalhes`;
     document.getElementById('badge-sla-text').textContent = stats.slaAlerts;
   } else {
     slaBadge.style.display = 'none';
@@ -3811,8 +3713,7 @@ function updateUI(stats) {
     }
     
     // Atualizar última atualização
-    const timeStr = new Date().toLocaleTimeString(currentLanguage === 'en' ? 'en-US' : (currentLanguage === 'es' ? 'es-ES' : 'pt-BR'));
-    document.getElementById('last-update').textContent = `${t('time.updated', 'Updated')}: ${timeStr}`;
+    document.getElementById('last-update').textContent = `Atualizado: ${new Date().toLocaleTimeString('pt-BR')}`;
     
     debugLog('✅ === UPDATEUI CONCLUÍDO ===');
     
@@ -4058,22 +3959,13 @@ function showDesktopNotifications(newTickets) {
       
       debugLog('📨 Enviando notificação:', title, body);
       
-      const notification = new Notification(title, {
+      showNativeNotification({
+        title: title,
         body: body,
-        icon: 'https://your-company.atlassian.net/favicon.ico',
+        icon: 'https://nubank.atlassian.net/favicon.ico',
         tag: ticket.key + '-' + ticket.changeType,
-        requireInteraction: false
+        onClick: true
       });
-      
-      notification.onclick = () => {
-        debugLog('🖱️ Notificação clicada:', ticket.key);
-        openTicketPreview(ticket.key);
-        notification.close();
-      };
-      
-      notification.onerror = (error) => {
-        console.error('❌ Erro ao mostrar notificação:', error);
-      };
       
       // Tocar som se habilitado
       if (currentConfig.soundNotifications !== false) {
@@ -4123,6 +4015,36 @@ function updateProModeSection(stats) {
   } else {
     animateNumber('stat-l1open', 0);
     debugLog('⚠️ L1 Open: Nenhum dado recebido');
+  }
+
+  // 👋 WELCOME IT HELP - Atualizar contador no card
+  if (stats.welcomeItHelpTickets) {
+    animateNumber('stat-welcomeithelp', stats.welcomeItHelpTickets.count || 0);
+    debugLog('👋 WELCOME IT HELP count:', stats.welcomeItHelpTickets.count);
+  } else {
+    animateNumber('stat-welcomeithelp', 0);
+    debugLog('⚠️ WELCOME IT HELP: Nenhum dado recebido');
+  }
+
+  // 🚨 CRITICIDADE_BB - Atualizar contador no card + piscar quando subir o total
+  {
+    const newBbCount = stats.criticidadeBbTickets
+      ? (stats.criticidadeBbTickets.count || 0)
+      : 0;
+    if (
+      previousCriticidadeBbCount !== null &&
+      newBbCount > previousCriticidadeBbCount
+    ) {
+      triggerCriticidadeBbCardBlink();
+    }
+    previousCriticidadeBbCount = newBbCount;
+  }
+  if (stats.criticidadeBbTickets) {
+    animateNumber('stat-criticidadebb', stats.criticidadeBbTickets.count || 0);
+    debugLog('🚨 CRITICIDADE_BB count:', stats.criticidadeBbTickets.count);
+  } else {
+    animateNumber('stat-criticidadebb', 0);
+    debugLog('⚠️ CRITICIDADE_BB: Nenhum dado recebido');
   }
   
   // SIM Cards - contador antigo (mantido para compatibilidade se houver referência em outro lugar)
@@ -4229,7 +4151,7 @@ function updateProjectStats(byProject) {
   
   container.innerHTML = projects.map(proj => {
     const data = byProject[proj] || { count: 0 };
-    const url = `https://your-company.atlassian.net/issues/?jql=assignee%20%3D%20currentUser%28%29%20AND%20resolution%20%3D%20Unresolved%20AND%20status%20NOT%20IN%20%28%22Cancelled%22%2C%20%22Canceled%22%2C%20%22Cancelado%22%2C%20%22Closed%22%29%20AND%20project%20%3D%20${proj}%20ORDER%20BY%20updated%20DESC`;
+    const url = `https://nubank.atlassian.net/issues/?jql=assignee%20%3D%20currentUser%28%29%20AND%20resolution%20%3D%20Unresolved%20AND%20status%20NOT%20IN%20%28%22Cancelled%22%2C%20%22Canceled%22%2C%20%22Cancelado%22%2C%20%22Closed%22%29%20AND%20project%20%3D%20${proj}%20ORDER%20BY%20updated%20DESC`;
     return `
       <div class="project-card-wrapper">
         <div class="project-card-main">
@@ -4354,13 +4276,15 @@ async function loadProjectTickets(projectKey, container) {
               const timeDiff = dueDate - now;
               const diffMinutes = Math.floor(timeDiff / 60000);
               
-              // Thresholds: 🔴 estourado, 🟡 ≤30min, 🟢 >30min
+              // Thresholds alinhados com o Jira (warning em 30 min)
               if (diffMinutes < 0) {
                 slaStatus = 'overdue'; // 🔴 Estourado
               } else if (diffMinutes <= 30) {
-                slaStatus = 'warning'; // 🟡 Atenção (≤ 30 min)
+                slaStatus = 'critical'; // 🔴 Crítico (≤ 30 min)
+              } else if (diffMinutes <= 60) {
+                slaStatus = 'warning'; // 🟡 Atenção (30-60 min)
               } else {
-                slaStatus = 'safe'; // 🟢 Seguro (> 30 min)
+                slaStatus = 'safe'; // 🟢 Seguro (> 1h)
               }
             }
           }
@@ -4373,7 +4297,7 @@ async function loadProjectTickets(projectKey, container) {
           <div class="ticket-item" data-ticket-key="${key}" ${slaStatus ? `data-sla-status="${slaStatus}"` : ''}>
             <div class="ticket-item-content">
               <div class="ticket-key-link">
-                <a href="https://your-company.atlassian.net/browse/${key}" target="_blank" onclick="event.stopPropagation()">${key}</a>
+                <a href="https://nubank.atlassian.net/browse/${key}" target="_blank" onclick="event.stopPropagation()">${key}</a>
               </div>
               <div class="ticket-summary">${summary}</div>
               <div class="ticket-meta">
@@ -4408,9 +4332,30 @@ async function loadProjectTickets(projectKey, container) {
     });
   });
       
-      // Carregar SLAs em batch (otimizado)
-      const ticketKeys = tickets.issues.map(issue => issue.key);
-      loadSlaForTicketsBatch(ticketKeys);
+      // Carregar SLAs de forma assíncrona para cada ticket
+      tickets.issues.forEach(async (issue) => {
+        const key = issue.key;
+        const slaContainer = document.getElementById(`sla-${key}`);
+        if (slaContainer) {
+          try {
+            console.log(`🔍 [DEBUG] Buscando SLA para ${key}...`);
+            const slaData = await ipcRenderer.invoke('get-ticket-sla', key);
+            console.log(`📊 [DEBUG] SLA Response para ${key}:`, slaData);
+            
+            if (slaData && slaData.success && slaData.data) {
+              updateTicketSlaDisplay(key, slaData.data);
+            } else {
+              console.warn(`⚠️ [DEBUG] SLA não disponível para ${key}:`, slaData?.error || 'Sem dados');
+              slaContainer.innerHTML = '';
+              slaContainer.style.display = 'none';
+            }
+          } catch (err) {
+            console.error(`❌ [ERROR] Erro ao buscar SLA para ${key}:`, err);
+            slaContainer.innerHTML = '';
+            slaContainer.style.display = 'none';
+          }
+        }
+      });
     } else {
       container.innerHTML = '<div class="no-tickets">Nenhum ticket encontrado</div>';
     }
@@ -4508,14 +4453,14 @@ function updateTrendChart(trend) {
 }
 
 function openTrendDay(jql) {
-  const baseUrl = currentConfig.jiraUrl || 'https://your-company.atlassian.net';
+  const baseUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
   const url = `${baseUrl}/issues/?jql=${encodeURIComponent(jql)}`;
   ipcRenderer.invoke('open-url', url);
 }
 
 // Cards
 function setupCardListeners() {
-  const cards = ['total', 'support', 'customer', 'pending', 'inprogress', 'simcard', 'l0bot', 'l1open'];
+  const cards = ['total', 'support', 'customer', 'pending', 'inprogress', 'simcard', 'l0bot', 'l1open', 'welcomeithelp', 'criticidadebb'];
   cards.forEach(cardId => {
     const card = document.getElementById(`card-${cardId}`);
     
@@ -4534,7 +4479,7 @@ function setupCardListeners() {
     
     // Expand button listener
     const expandBtn = card.querySelector('.expand-btn');
-    expandBtn.addEventListener('click', (e) => {
+    if (expandBtn) expandBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleCardExpansion(cardId);
     });
@@ -4583,7 +4528,7 @@ function setupCardListeners() {
             container.insertBefore(draggedCard, card.nextSibling);
           }
           
-          showToast('Cards', t('layout.cardsUpdated'), 'success');
+          showToast('Cards', 'Ordem atualizada', 'success');
         }
       });
     }
@@ -4591,7 +4536,7 @@ function setupCardListeners() {
 }
 
 function openCardInJira(cardId) {
-  const baseUrl = currentConfig.jiraUrl || 'https://your-company.atlassian.net';
+  const baseUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
   let url = '';
   
   const assignee = currentConfig.monitorOtherUser && currentConfig.otherUserEmail 
@@ -4600,7 +4545,7 @@ function openCardInJira(cardId) {
   
   // Para o card pending, usar sempre o link específico
   if (cardId === 'pending') {
-    url = 'https://your-company.atlassian.net/issues?jql=resolution%20%3D%20Unresolved%20AND%20status%20IN%20%28%22Pending%22%2C%20%22Pendente%22%29%20AND%20assignee%20%3D%20currentUser%28%29';
+    url = 'https://nubank.atlassian.net/issues?jql=resolution%20%3D%20Unresolved%20AND%20status%20IN%20%28%22Pending%22%2C%20%22Pendente%22%29%20AND%20assignee%20%3D%20currentUser%28%29';
     ipcRenderer.invoke('open-url', url);
     return;
   }
@@ -4622,19 +4567,32 @@ function openCardInJira(cardId) {
       break;
     case 'simcard':
       // Abrir filtro 52128
-      url = 'https://your-company.atlassian.net/issues/?filter=52128';
+      url = 'https://nubank.atlassian.net/issues/?filter=52128';
       ipcRenderer.invoke('open-url', url);
       return;
     case 'l0bot':
       // Abrir queue 7631
-      url = 'https://your-company.atlassian.net/jira/servicedesk/projects/IT/queues/custom/7631';
+      url = 'https://nubank.atlassian.net/jira/servicedesk/projects/IT/queues/custom/7631';
       ipcRenderer.invoke('open-url', url);
       return;
     case 'l1open':
       // Abrir queue 3015
-      url = 'https://your-company.atlassian.net/jira/servicedesk/projects/IT/queues/custom/3015';
+      url = 'https://nubank.atlassian.net/jira/servicedesk/projects/IT/queues/custom/3015';
       ipcRenderer.invoke('open-url', url);
       return;
+    case 'welcomeithelp':
+      // Abrir queue 25342
+      url = 'https://nubank.atlassian.net/jira/servicedesk/projects/IT/queues/custom/25342';
+      ipcRenderer.invoke('open-url', url);
+      return;
+    case 'criticidadebb': {
+      // Abrir busca da criticidade com base na JQL usada no contador
+      const criticidadeJql = currentStats?.criticidadeBbTickets?.jql
+        || 'project IN ("IT", "GTC", "TECHSTOP") AND labels = CRITICIDADE_BB AND status IN (Blocked, "Business Approval", Escalated, "In Execution", "In Progress", "In Validation", Open, Pending, "Procurement Process", Validated, "To Do", "Waiting for Customer", "Waiting for approval", "Waiting for IT Risk/InfoSec Review", "Waiting for Maat approval") ORDER BY created DESC';
+      url = `${baseUrl}/issues/?jql=${encodeURIComponent(criticidadeJql)}`;
+      ipcRenderer.invoke('open-url', url);
+      return;
+    }
   }
   
   url = `${baseUrl}/issues/?jql=${encodeURIComponent(jql)}`;
@@ -4782,30 +4740,39 @@ function checkSlaStatusChange(ticketKey, newStatus, summary, minutesRemaining) {
     notificationTitle = '🔴 SLA Estourado!';
     notificationBody = `${ticketKey}: ${summary}\nO SLA deste ticket expirou!`;
     notificationIcon = '🔴';
+  } else if (newStatus === 'critical' && previousStatus === 'safe' || previousStatus === 'warning') {
+    // Entrou em CRÍTICO (< 1h) 🔴
+    shouldNotify = true;
+    notificationTitle = '🔴 SLA Crítico!';
+    notificationBody = `${ticketKey}: ${summary}\nMenos de 1 hora para o SLA expirar!`;
+    notificationIcon = '🔴';
   } else if (newStatus === 'warning' && previousStatus === 'safe') {
-    // Entrou em ATENÇÃO (≤ 30 min) 🟡
+    // Entrou em ATENÇÃO (< 3h) 🟡
     shouldNotify = true;
     notificationTitle = '🟡 SLA em Atenção';
-    notificationBody = `${ticketKey}: ${summary}\nMenos de 30 minutos para o SLA expirar!`;
+    notificationBody = `${ticketKey}: ${summary}\nMenos de 3 horas para o SLA expirar (${Math.floor(minutesRemaining / 60)}h ${minutesRemaining % 60}min)`;
     notificationIcon = '🟡';
   }
   
   if (shouldNotify) {
     // Notificação desktop
-    if (Notification.permission === 'granted') {
-      new Notification(notificationTitle, {
-        body: notificationBody,
-        icon: './assets/icon.png',
-        tag: `sla-${ticketKey}`,
-        requireInteraction: true // Não desaparece automaticamente
-      });
-    }
+    showNativeNotification({
+      title: notificationTitle,
+      body: notificationBody,
+      icon: './assets/icon.png',
+      tag: `sla-${ticketKey}`,
+      onClick: true,
+      urgency: 'critical'
+    });
     
     // Notificação interna (sino)
     addInternalNotification({
-      key: ticketKey,
-      summary: summary
-    }, 'sla', notificationBody);
+      icon: notificationIcon,
+      title: notificationTitle,
+      message: notificationBody,
+      ticketKey: ticketKey,
+      timestamp: new Date().toISOString()
+    });
     
     debugLog(`🔔 Notificação SLA: ${ticketKey} mudou de ${previousStatus} para ${newStatus}`);
   }
@@ -4934,6 +4901,12 @@ function loadTicketsList(cardId) {
     case 'l1open':
       tickets = currentStats.l1OpenTickets?.tickets || [];
       break;
+    case 'welcomeithelp':
+      tickets = currentStats.welcomeItHelpTickets?.tickets || [];
+      break;
+    case 'criticidadebb':
+      tickets = currentStats.criticidadeBbTickets?.tickets || [];
+      break;
   }
   
   if (tickets.length === 0) {
@@ -4972,13 +4945,15 @@ function loadTicketsList(cardId) {
           const timeDiff = dueDate - now;
           const diffMinutes = Math.floor(timeDiff / 60000);
           
-          // Thresholds: 🔴 estourado, 🟡 ≤30min, 🟢 >30min
+          // Thresholds alinhados com o Jira (warning em 30 min)
           if (diffMinutes < 0) {
             slaStatus = 'overdue'; // 🔴 Estourado
           } else if (diffMinutes <= 30) {
-            slaStatus = 'warning'; // 🟡 Atenção (≤ 30 min)
+            slaStatus = 'critical'; // 🔴 Crítico (≤ 30 min)
+          } else if (diffMinutes <= 60) {
+            slaStatus = 'warning'; // 🟡 Atenção (30-60 min)
           } else {
-            slaStatus = 'safe'; // 🟢 Seguro (> 30 min)
+            slaStatus = 'safe'; // 🟢 Seguro (> 1h)
           }
           
           // 🔔 Verificar se houve mudança de status e notificar
@@ -5022,9 +4997,31 @@ function loadTicketsList(cardId) {
     });
   });
   
-  // Carregar SLAs em batch (otimizado)
-  const ticketKeys = ticketsToRender.map(ticket => ticket.key);
-  loadSlaForTicketsBatch(ticketKeys);
+  // Carregar SLAs de forma assíncrona para cada ticket
+  ticketsToRender.forEach(async (ticket) => {
+    const key = ticket.key;
+    const slaContainer = document.getElementById(`sla-${key}`);
+    if (slaContainer) {
+      try {
+        console.log(`🔍 [DEBUG] Buscando SLA para ${key}...`);
+        const slaData = await ipcRenderer.invoke('get-ticket-sla', key);
+        console.log(`📊 [DEBUG] SLA Response para ${key}:`, slaData);
+        
+        if (slaData && slaData.success && slaData.data) {
+          updateTicketSlaDisplay(key, slaData.data);
+        } else {
+          // SLA não disponível ou ticket não é do Service Desk
+          console.warn(`⚠️ [DEBUG] SLA não disponível para ${key}:`, slaData?.error || 'Sem dados');
+          slaContainer.innerHTML = '';
+          slaContainer.style.display = 'none';
+        }
+      } catch (err) {
+        console.error(`❌ [ERROR] Erro ao buscar SLA para ${key}:`, err);
+        slaContainer.innerHTML = '';
+        slaContainer.style.display = 'none';
+      }
+    }
+  });
 }
 
 function updateExpandedTicketsLists() {
@@ -5110,13 +5107,15 @@ function loadSimCardsTicketsList() {
         const timeDiff = dueDate - now;
         const diffMinutes = Math.floor(timeDiff / 60000);
         
-        // Thresholds: 🔴 estourado, 🟡 ≤30min, 🟢 >30min
+        // Thresholds alinhados com o Jira (warning em 30 min)
         if (diffMinutes < 0) {
           slaStatus = 'overdue'; // 🔴 Estourado
         } else if (diffMinutes <= 30) {
-          slaStatus = 'warning'; // 🟡 Atenção (≤ 30 min)
+          slaStatus = 'critical'; // 🔴 Crítico (≤ 30 min)
+        } else if (diffMinutes <= 60) {
+          slaStatus = 'warning'; // 🟡 Atenção (30-60 min)
         } else {
-          slaStatus = 'safe'; // 🟢 Seguro (> 30 min)
+          slaStatus = 'safe'; // 🟢 Seguro (> 1h)
         }
       }
     }
@@ -5144,9 +5143,30 @@ function loadSimCardsTicketsList() {
     });
   });
   
-  // Carregar SLAs em batch (otimizado)
-  const ticketKeys = tickets.map(ticket => ticket.key);
-  loadSlaForTicketsBatch(ticketKeys);
+  // Carregar SLAs de forma assíncrona para cada ticket
+  tickets.forEach(async (ticket) => {
+    const key = ticket.key;
+    const slaContainer = document.getElementById(`sla-${key}`);
+    if (slaContainer) {
+      try {
+        console.log(`🔍 [DEBUG] Buscando SLA para ${key}...`);
+        const slaData = await ipcRenderer.invoke('get-ticket-sla', key);
+        console.log(`📊 [DEBUG] SLA Response para ${key}:`, slaData);
+        
+        if (slaData && slaData.success && slaData.data) {
+          updateTicketSlaDisplay(key, slaData.data);
+        } else {
+          console.warn(`⚠️ [DEBUG] SLA não disponível para ${key}:`, slaData?.error || 'Sem dados');
+          slaContainer.innerHTML = '';
+          slaContainer.style.display = 'none';
+        }
+      } catch (err) {
+        console.error(`❌ [ERROR] Erro ao buscar SLA para ${key}:`, err);
+        slaContainer.innerHTML = '';
+        slaContainer.style.display = 'none';
+      }
+    }
+  });
 }
 
 // Função para carregar lista de tickets Avaliados
@@ -5359,14 +5379,14 @@ function filterEvaluatedTicketsByRating(stars) {
 
 // Abrir Ticket
 function openTicketInJira(ticketKey) {
-  const baseUrl = currentConfig.jiraUrl || 'https://your-company.atlassian.net';
+  const baseUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
   const url = `${baseUrl}/browse/${ticketKey}`;
   ipcRenderer.invoke('open-url', url);
   hideSearch();
 }
 
 // Preview de Ticket
-async function openTicketPreview(ticketKey, showLoading = true) {
+async function openTicketPreview(ticketKey) {
   console.log('🎯 openTicketPreview chamada para:', ticketKey);
   
   const modal = document.getElementById('ticket-preview-modal');
@@ -5383,16 +5403,8 @@ async function openTicketPreview(ticketKey, showLoading = true) {
   modal.style.display = 'flex';
   modal.style.visibility = 'visible';
   modal.style.opacity = '1';
-  
-  // Se showLoading é false, só fazer um flash sutil no conteúdo
-  if (showLoading) {
-    loading.style.display = 'block';
-    body.style.display = 'none';
-  } else {
-    // Flash sutil - piscar o conteúdo
-    body.classList.add('refreshing');
-    setTimeout(() => body.classList.remove('refreshing'), 300);
-  }
+  loading.style.display = 'block';
+  body.style.display = 'none';
   error.style.display = 'none';
   
   try {
@@ -5431,23 +5443,18 @@ async function openTicketPreview(ticketKey, showLoading = true) {
   }
 }
 
-// Refresh sutil do preview (sem tela de loading)
-async function refreshTicketPreview(ticketKey) {
-  await openTicketPreview(ticketKey, false);
-}
-
 let currentPreviewTicket = null;
 
 function displayTicketPreview(ticket) {
+  debugLog('🎨 Renderizando preview do ticket:', ticket);
+  debugLog('📋 Support Level:', ticket.supportLevel);
+  debugLog('📋 ITOps Team:', ticket.team);
+  debugLog('📋 Custom Fields:', ticket.customFields);
+  
   if (!ticket) {
     console.error('❌ Ticket vazio ou undefined!');
     return;
   }
-  
-  debugLog('🎨 Renderizando preview do ticket:', ticket);
-  debugLog('📋 Support Level:', ticket.supportLevel || 'N/A');
-  debugLog('📋 ITOps Team:', ticket.team || 'N/A');
-  debugLog('📋 Custom Fields:', ticket.customFields || {});
   
   const body = document.getElementById('ticket-preview-body');
   if (!body) {
@@ -5456,7 +5463,6 @@ function displayTicketPreview(ticket) {
   }
   
   currentPreviewTicket = ticket; // Store for later use
-  window.currentPreviewTicket = ticket; // Expor globalmente para menções
   
   try {
     const html = `
@@ -5472,6 +5478,12 @@ function displayTicketPreview(ticket) {
             <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
           </svg>
           Abrir no Jira
+        </button>
+        <button class="btn-open-jira-webview" id="btn-open-jira-webview" title="Abrir em janela interna">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h9v6h-9z"/>
+          </svg>
+          Janela Interna
         </button>
         <button class="close-preview-btn-large" onclick="hideTicketPreview()">✕</button>
       </div>
@@ -5529,7 +5541,7 @@ function displayTicketPreview(ticket) {
           <span class="edit-icon" title="Clique para editar">✏️</span>
         </div>
         <div class="ticket-info-value-editable" onclick="makeFieldEditable('supportLevel', '${ticket.key}', '${ticket.supportLevel || ''}')">
-          <span id="supportLevel-display">${ticket.supportLevel || `<span style="color: #999; font-style: italic;">${t('preview.notDefined', 'Not defined')}</span>`}</span>
+          <span id="supportLevel-display">${ticket.supportLevel || '<span style="color: #999; font-style: italic;">Não definido</span>'}</span>
         </div>
       </div>
       
@@ -5540,17 +5552,17 @@ function displayTicketPreview(ticket) {
           <span class="edit-icon" title="Clique para editar">✏️</span>
         </div>
         <div class="ticket-info-value-editable" onclick="makeFieldEditable('team', '${ticket.key}', '${ticket.team || ''}')">
-          <span id="team-display">${ticket.team || `<span style="color: #999; font-style: italic;">${t('preview.notDefined', 'Not defined')}</span>`}</span>
+          <span id="team-display">${ticket.team || '<span style="color: #999; font-style: italic;">Não definido</span>'}</span>
         </div>
       </div>
       
       <div class="ticket-info-item">
-        <div class="ticket-info-label">${t('preview.created', 'Created')}</div>
-        <div class="ticket-info-value">${new Date(ticket.created).toLocaleString(currentLanguage === 'en' ? 'en-US' : (currentLanguage === 'es' ? 'es-ES' : 'pt-BR'))}</div>
+        <div class="ticket-info-label">Criado</div>
+        <div class="ticket-info-value">${new Date(ticket.created).toLocaleString('pt-BR')}</div>
       </div>
       <div class="ticket-info-item">
-        <div class="ticket-info-label">${t('preview.updated', 'Updated')}</div>
-        <div class="ticket-info-value">${new Date(ticket.updated).toLocaleString(currentLanguage === 'en' ? 'en-US' : (currentLanguage === 'es' ? 'es-ES' : 'pt-BR'))}</div>
+        <div class="ticket-info-label">Atualizado</div>
+        <div class="ticket-info-value">${new Date(ticket.updated).toLocaleString('pt-BR')}</div>
       </div>
       
       ${ticket.sla ? `
@@ -5734,37 +5746,19 @@ function displayTicketPreview(ticket) {
       <h3 class="ticket-section-title">💬 Comentários (${ticket.comments?.length || 0})</h3>
       <div class="ticket-comments">
         ${(ticket.comments && Array.isArray(ticket.comments) && ticket.comments.length > 0) ? ticket.comments.map(comment => `
-          <div class="comment-item" data-comment-id="${comment.id}">
+          <div class="comment-item">
             <div class="comment-header">
               <span class="comment-author">${comment.author}</span>
               ${comment.isInternal ? '<span class="comment-badge">🔒 Interno</span>' : ''}
               <span class="comment-date">${new Date(comment.created).toLocaleString('pt-BR')}</span>
-              ${comment.authorAccountId === currentUser?.accountId ? `
-                <div class="comment-actions-buttons">
-                  <button class="comment-edit-btn" onclick="editComment('${ticket.key}', '${comment.id}')" title="Editar">✏️</button>
-                  <button class="comment-delete-btn" onclick="deleteComment('${ticket.key}', '${comment.id}')" title="Deletar">🗑️</button>
-                </div>
-              ` : ''}
             </div>
-            <div class="comment-body" id="comment-body-${comment.id}">${comment.body}</div>
+            <div class="comment-body">${comment.body}</div>
           </div>
         `).join('') : '<p class="no-comments-msg">Nenhum comentário ainda</p>'}
       </div>
       
       <div class="add-comment-section">
-        <!-- Controls row -->
-        <div class="comment-controls-row">
-          <div class="comment-checkbox">
-            <input type="checkbox" id="internal-comment-checkbox-${ticket.key}">
-            <label for="internal-comment-checkbox-${ticket.key}">🔒 Interno</label>
-          </div>
-          <button class="btn-canned-icon" onclick="openCannedResponses('${ticket.key}')" title="Respostas Prontas">
-            📋
-          </button>
-        </div>
-        
-        <!-- Textarea -->
-        <div class="comment-input-container">
+        <div class="comment-input-container" style="position: relative;">
           <textarea 
             class="comment-textarea" 
             id="new-comment-textarea-${ticket.key}"
@@ -5774,10 +5768,12 @@ function displayTicketPreview(ticket) {
             rows="4"></textarea>
           <div class="mention-suggestions" id="mention-suggestions-${ticket.key}" style="display: none;"></div>
         </div>
-        
-        <!-- Submit button -->
-        <div class="comment-submit-row">
-          <button class="btn-primary btn-submit-comment" onclick="addComment('${ticket.key}')">💬 Enviar Comentário</button>
+        <div class="comment-actions">
+          <div class="comment-checkbox">
+            <input type="checkbox" id="internal-comment-checkbox-${ticket.key}">
+            <label for="internal-comment-checkbox-${ticket.key}">🔒 Comentário interno</label>
+          </div>
+          <button class="btn-primary" onclick="addComment('${ticket.key}')">💬 Enviar Comentário</button>
         </div>
       </div>
     </div>
@@ -5785,11 +5781,19 @@ function displayTicketPreview(ticket) {
   
   body.innerHTML = html;
   
-  // Add event listener for open in Jira button
+  // Add event listeners for the new buttons
   const btnOpenJira = document.getElementById('btn-open-jira-preview');
+  const btnOpenWebview = document.getElementById('btn-open-jira-webview');
+  
   if (btnOpenJira) {
     btnOpenJira.addEventListener('click', () => {
       openCurrentTicketInJira();
+    });
+  }
+  
+  if (btnOpenWebview) {
+    btnOpenWebview.addEventListener('click', () => {
+      openCurrentTicketInWebview();
     });
   }
   
@@ -6006,11 +6010,19 @@ function updateTicketSlaDisplay(ticketKey, slaInfo) {
 
 async function loadAttachmentPreview(attachmentId) {
   try {
-    const result = await ipcRenderer.invoke('get-attachment-content', attachmentId);
+    const result = await ipcRenderer.invoke('get-attachment-url', attachmentId);
     if (result.success) {
+      const response = await fetch(result.url, {
+        headers: {
+          'Authorization': `Basic ${btoa(`${result.auth.email}:${result.auth.apiToken}`)}`
+        }
+      });
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      
       const img = document.querySelector(`img[data-attachment-id="${attachmentId}"]`);
       if (img) {
-        img.src = `data:${result.mimeType};base64,${result.data}`;
+        img.src = url;
       }
     }
   } catch (error) {
@@ -6022,13 +6034,13 @@ async function downloadAttachment(attachmentId, filename) {
   try {
     const result = await ipcRenderer.invoke('download-attachment', attachmentId, filename);
     if (result.success) {
-      showToast(t('attachment.downloadSuccess'), 'success');
+      showToast('Anexo baixado com sucesso!', 'success');
     } else if (!result.cancelled) {
-      showToast(t('attachment.downloadError'), 'error');
+      showToast('Erro ao baixar anexo', 'error');
     }
   } catch (error) {
     console.error('Erro ao baixar anexo:', error);
-    showToast(t('attachment.downloadError'), 'error');
+    showToast('Erro ao baixar anexo', 'error');
   }
 }
 
@@ -6040,20 +6052,20 @@ async function selectAndUploadAttachments(ticketKey) {
       return;
     }
     
-    showToast(t('attachment.uploading'), 'info');
+    showToast('Enviando anexo(s)...', 'info');
     
     const result = await ipcRenderer.invoke('add-attachment', ticketKey, selectResult.filePaths);
     
     if (result.success) {
-      showToast(t('attachment.uploadSuccess'), 'success');
-      // Recarregar preview com flash sutil
-      setTimeout(() => refreshTicketPreview(ticketKey), 500);
+      showToast('Anexo(s) enviado(s) com sucesso!', 'success');
+      // Recarregar preview
+      setTimeout(() => openTicketPreview(ticketKey), 1000);
     } else {
-      showToast(t('attachment.uploadError'), 'error');
+      showToast('Erro ao enviar anexo(s)', 'error');
     }
   } catch (error) {
     console.error('Erro ao enviar anexo:', error);
-    showToast(t('attachment.uploadError'), 'error');
+    showToast('Erro ao enviar anexo', 'error');
   }
 }
 
@@ -6062,50 +6074,6 @@ let mentionTimeout = null;
 let mentionUsers = {};
 let selectedMentionIndex = {};
 let currentMentionUsers = {};
-
-// Função para obter envolvidos do ticket (reporter, assignee, comentaristas)
-function getTicketInvolved() {
-  const currentTicket = window.currentPreviewTicket;
-  if (!currentTicket) return [];
-  
-  const involved = [];
-  const addedIds = new Set();
-  
-  // 1. Reporter (quem abriu o ticket) - PRIORIDADE MÁXIMA
-  if (currentTicket.reporter && currentTicket.reporter.accountId) {
-    involved.push({
-      ...currentTicket.reporter,
-      _role: 'reporter'
-    });
-    addedIds.add(currentTicket.reporter.accountId);
-  }
-  
-  // 2. Assignee (responsável)
-  if (currentTicket.assignee && currentTicket.assignee.accountId && !addedIds.has(currentTicket.assignee.accountId)) {
-    involved.push({
-      ...currentTicket.assignee,
-      _role: 'assignee'
-    });
-    addedIds.add(currentTicket.assignee.accountId);
-  }
-  
-  // 3. Comentaristas (pessoas que comentaram)
-  if (currentTicket.comments && Array.isArray(currentTicket.comments)) {
-    currentTicket.comments.forEach(comment => {
-      if (comment.authorAccountId && !addedIds.has(comment.authorAccountId)) {
-        involved.push({
-          displayName: comment.author,
-          accountId: comment.authorAccountId,
-          emailAddress: null,
-          _role: 'commenter'
-        });
-        addedIds.add(comment.authorAccountId);
-      }
-    });
-  }
-  
-  return involved;
-}
 
 async function checkForMentions(ticketKey, text) {
   clearTimeout(mentionTimeout);
@@ -6121,80 +6089,53 @@ async function checkForMentions(ticketKey, text) {
     return;
   }
   
-  // Verificar se o @ está no final ou seguido de texto (não de espaço)
+  // Pegar texto após @
   const afterAt = text.substring(atIndex + 1);
   const spaceIndex = afterAt.search(/[\s\n]/);
   const query = spaceIndex === -1 ? afterAt : afterAt.substring(0, spaceIndex);
   
-  // Se há espaço depois do @query, não mostrar sugestões
-  if (spaceIndex !== -1 && spaceIndex < afterAt.length) {
+  // Permitir busca com 1 caractere ou mais
+  if (query.length < 1 && atIndex === text.length - 1) {
     suggestionsDiv.style.display = 'none';
     return;
   }
   
-  // MOSTRAR IMEDIATAMENTE os envolvidos quando digita apenas @
-  if (query.length === 0) {
-    const involved = getTicketInvolved();
-    
-    if (involved.length > 0) {
-      debugLog('👥 Mostrando envolvidos do ticket:', involved.map(u => u.displayName));
-      currentMentionUsers[ticketKey] = involved;
-      selectedMentionIndex[ticketKey] = 0;
-      renderMentionSuggestions(ticketKey, involved);
-      suggestionsDiv.style.display = 'block';
-    } else {
-      // Se não há envolvidos, buscar via API
-      suggestionsDiv.innerHTML = '<div class="mention-no-results">Carregando...</div>';
-      suggestionsDiv.style.display = 'block';
-      
-      const result = await ipcRenderer.invoke('search-users', 'a');
-      if (result && result.success && result.data) {
-        const users = result.data.slice(0, 10);
-        currentMentionUsers[ticketKey] = users;
-        selectedMentionIndex[ticketKey] = 0;
-        renderMentionSuggestions(ticketKey, users);
-      }
-    }
-    return;
-  }
-  
-  // Debounce para busca com query
+  // Debounce
   mentionTimeout = setTimeout(async () => {
     try {
+      const projectKey = ticketKey.split('-')[0];
+      
+      // BUSCA DINÂMICA via API do Jira (como no Jira nativo)
       debugLog(`🔎 Buscando usuários com query "${query}" via API...`);
       
-      // Primeiro, filtrar envolvidos localmente
-      const involved = getTicketInvolved();
-      const queryLower = query.toLowerCase().trim();
+      // Usar search-users com a query do usuário
+      const searchQuery = query.length > 0 ? query : 'a'; // Se vazio, buscar por 'a' para ter resultados
+      const result = await ipcRenderer.invoke('search-users', searchQuery, 15);
       
-      const filteredInvolved = involved.filter(user => {
-        if (!user.displayName) return false;
-        const displayNameLower = user.displayName.toLowerCase();
-        const emailLower = (user.emailAddress || '').toLowerCase();
-        return displayNameLower.includes(queryLower) || emailLower.includes(queryLower);
-      });
-      
-      // Buscar via API também
-      const result = await ipcRenderer.invoke('search-users', query);
-      
-      let apiUsers = [];
-      if (result && result.success && result.data) {
-        apiUsers = result.data || [];
+      if (!result.success || !result.data) {
+        console.error('❌ Erro ao buscar usuários:', result.error);
+        suggestionsDiv.innerHTML = '<div class="mention-no-results">Erro ao buscar usuários</div>';
+        suggestionsDiv.style.display = 'block';
+        return;
       }
       
-      // Combinar: envolvidos filtrados primeiro, depois API (sem duplicados)
-      const addedIds = new Set(filteredInvolved.map(u => u.accountId));
-      const combinedUsers = [...filteredInvolved];
+      const users = result.data; // FIX: usar 'data' em vez de 'users'
+      debugLog(`✅ ${users.length} usuários encontrados via API`);
+      debugLog('👥 Resultados:', users.slice(0, 5).map(u => `${u.displayName} (${u.emailAddress})`));
       
-      apiUsers.forEach(user => {
-        if (!addedIds.has(user.accountId)) {
-          combinedUsers.push(user);
-          addedIds.add(user.accountId);
-        }
-      });
+      // Se query vazia, mostrar todos
+      if (query.length === 0) {
+        const allUsers = users.slice(0, 10);
+        currentMentionUsers[ticketKey] = allUsers;
+        selectedMentionIndex[ticketKey] = 0;
+        renderMentionSuggestions(ticketKey, allUsers);
+        suggestionsDiv.style.display = 'block';
+        return;
+      }
       
-      // Filtrar por query
-      const filtered = combinedUsers.filter(user => {
+      // Aplicar filtro local adicional para refinar
+      const queryLower = query.toLowerCase().trim();
+      const filtered = users.filter(user => {
         if (!user.displayName) return false;
         
         const displayNameLower = user.displayName.toLowerCase();
@@ -6267,49 +6208,22 @@ function renderMentionSuggestions(ticketKey, users) {
   
   const selectedIndex = selectedMentionIndex[ticketKey] || 0;
   
-  // Verificar quem é o reporter e assignee do ticket
-  const currentTicket = window.currentPreviewTicket;
-  const reporterAccountId = currentTicket?.reporter?.accountId;
-  const assigneeAccountId = currentTicket?.assignee?.accountId;
-  
   let html = '';
   users.forEach((user, index) => {
     const isSelected = index === selectedIndex;
     
-    // Determinar papel do usuário
-    const isReporter = reporterAccountId && user.accountId === reporterAccountId;
-    const isAssignee = assigneeAccountId && user.accountId === assigneeAccountId;
-    const role = user._role || (isReporter ? 'reporter' : (isAssignee ? 'assignee' : null));
-    
-    // Badge baseado no papel
-    let badgeHtml = '';
-    let roleClass = '';
-    if (isReporter || role === 'reporter') {
-      badgeHtml = '<span class="mention-role-badge reporter">Reportou</span>';
-      roleClass = 'is-reporter';
-    } else if (isAssignee || role === 'assignee') {
-      badgeHtml = '<span class="mention-role-badge assignee">Responsável</span>';
-      roleClass = 'is-assignee';
-    } else if (role === 'commenter') {
-      badgeHtml = '<span class="mention-role-badge commenter">Comentou</span>';
-      roleClass = 'is-commenter';
-    }
-    
     html += `
-      <div class="mention-item ${isSelected ? 'selected' : ''} ${roleClass}" 
+      <div class="mention-item ${isSelected ? 'selected' : ''}" 
            data-index="${index}"
            data-ticket-key="${ticketKey}"
            data-display-name="${user.displayName}"
            data-account-id="${user.accountId}"
            onmouseenter="setSelectedMention('${ticketKey}', ${index})">
-        <div class="mention-avatar ${roleClass ? roleClass + '-avatar' : ''}">
-          ${user.displayName ? user.displayName.charAt(0).toUpperCase() : '?'}
+        <div class="mention-avatar">
+          ${user.displayName.charAt(0).toUpperCase()}
         </div>
         <div class="mention-info">
-          <div class="mention-name">
-            @${escapeHtml(user.displayName || 'Usuário')}
-            ${badgeHtml}
-          </div>
+          <div class="mention-name">@${escapeHtml(user.displayName)}</div>
           ${user.emailAddress ? `<div class="mention-email">${escapeHtml(user.emailAddress)}</div>` : ''}
         </div>
       </div>
@@ -6572,12 +6486,12 @@ async function addComment(ticketKey) {
   const commentBody = textarea.value.trim();
   
   if (!commentBody) {
-    showToast(t('general.error'), t('comment.empty'), 'error');
+    showToast('Erro', 'Comentário não pode estar vazio', 'error');
     return;
   }
   
   try {
-    showToast(t('general.sending'), t('comment.sending'), 'info');
+    showToast('Enviando', 'Enviando comentário...', 'info');
     
     // Extrair menções
     const mentions = textarea.dataset.mentions ? JSON.parse(textarea.dataset.mentions) : {};
@@ -6590,7 +6504,7 @@ async function addComment(ticketKey) {
     });
     
     if (result.success) {
-      showToast(t('general.success'), t('comment.sent'), 'success');
+      showToast('Sucesso', 'Comentário enviado!', 'success');
       textarea.value = '';
       textarea.dataset.mentions = '';
       
@@ -6599,99 +6513,14 @@ async function addComment(ticketKey) {
       const ticketSummary = ticket?.summary || ticket?.fields?.summary || ticketKey;
       trackCommentAdded(ticketKey, ticketSummary);
       
-      // Recarregar preview com flash sutil
-      setTimeout(() => refreshTicketPreview(ticketKey), 500);
+      // Recarregar preview
+      setTimeout(() => openTicketPreview(ticketKey), 1000);
     } else {
       throw new Error(result.error);
     }
   } catch (error) {
     console.error('Erro ao enviar comentário:', error);
-    showToast(t('general.error'), error.message || t('comment.sendFailed'), 'error');
-  }
-}
-
-// Editar comentário
-async function editComment(ticketKey, commentId) {
-  const commentBody = document.getElementById(`comment-body-${commentId}`);
-  if (!commentBody) return;
-  
-  // Pegar texto atual (remover HTML)
-  const currentText = commentBody.innerText || commentBody.textContent || '';
-  
-  // Substituir por textarea para edição
-  const originalHtml = commentBody.innerHTML;
-  commentBody.innerHTML = `
-    <div class="edit-comment-container">
-      <textarea class="edit-comment-textarea" id="edit-textarea-${commentId}" rows="4">${currentText}</textarea>
-      <div class="edit-comment-actions">
-        <button class="btn-save-comment" onclick="saveEditedComment('${ticketKey}', '${commentId}')">💾 Salvar</button>
-        <button class="btn-cancel-comment" onclick="cancelEditComment('${commentId}', '${encodeURIComponent(originalHtml)}')">❌ Cancelar</button>
-      </div>
-    </div>
-  `;
-  
-  // Focar no textarea
-  document.getElementById(`edit-textarea-${commentId}`)?.focus();
-}
-
-// Salvar comentário editado
-async function saveEditedComment(ticketKey, commentId) {
-  const textarea = document.getElementById(`edit-textarea-${commentId}`);
-  if (!textarea) return;
-  
-  const newBody = textarea.value.trim();
-  if (!newBody) {
-    showToast(t('general.error'), t('comment.empty'), 'error');
-    return;
-  }
-  
-  try {
-    showToast(t('general.saving'), t('comment.updating'), 'info');
-    
-    const result = await ipcRenderer.invoke('update-comment', ticketKey, commentId, newBody);
-    
-    if (result.success) {
-      showToast(t('general.success'), t('comment.updated'), 'success');
-      // Recarregar preview com flash sutil
-      setTimeout(() => refreshTicketPreview(ticketKey), 300);
-    } else {
-      throw new Error(result.error || 'Erro ao atualizar');
-    }
-  } catch (error) {
-    console.error('Erro ao atualizar comentário:', error);
-    showToast(t('general.error'), error.message || t('comment.updateFailed'), 'error');
-  }
-}
-
-// Cancelar edição de comentário
-function cancelEditComment(commentId, originalHtmlEncoded) {
-  const commentBody = document.getElementById(`comment-body-${commentId}`);
-  if (commentBody) {
-    commentBody.innerHTML = decodeURIComponent(originalHtmlEncoded);
-  }
-}
-
-// Deletar comentário
-async function deleteComment(ticketKey, commentId) {
-  if (!confirm('Tem certeza que deseja deletar este comentário?')) {
-    return;
-  }
-  
-  try {
-    showToast(t('general.deleting'), t('comment.deleting'), 'info');
-    
-    const result = await ipcRenderer.invoke('delete-comment', ticketKey, commentId);
-    
-    if (result.success) {
-      showToast(t('general.success'), t('comment.deleted'), 'success');
-      // Recarregar preview com flash sutil
-      setTimeout(() => refreshTicketPreview(ticketKey), 300);
-    } else {
-      throw new Error(result.error || 'Erro ao deletar');
-    }
-  } catch (error) {
-    console.error('Erro ao deletar comentário:', error);
-    showToast(t('general.error'), error.message || t('comment.deleteFailed'), 'error');
+    showToast('Erro', error.message || 'Falha ao enviar comentário', 'error');
   }
 }
 
@@ -6701,15 +6530,15 @@ async function selectAndUploadAttachments(ticketKey) {
     const result = await ipcRenderer.invoke('select-and-upload-attachments', ticketKey);
     
     if (result.success) {
-      showToast(t('general.success'), `${result.count} ${t('attachment.sent')}`, 'success');
-      // Recarregar preview com flash sutil
-      setTimeout(() => refreshTicketPreview(ticketKey), 500);
+      showToast('Sucesso', `${result.count} anexo(s) enviado(s)!`, 'success');
+      // Recarregar preview
+      setTimeout(() => openTicketPreview(ticketKey), 1000);
     } else if (!result.cancelled) {
       throw new Error(result.error);
     }
   } catch (error) {
     console.error('Erro ao enviar anexos:', error);
-    showToast(t('general.error'), error.message || t('attachment.uploadError'), 'error');
+    showToast('Erro', error.message || 'Falha ao enviar anexos', 'error');
   }
 }
 
@@ -6720,7 +6549,7 @@ function hideTicketPreview() {
 
 function openCurrentTicketInJira() {
   if (!currentPreviewTicket) return;
-  const baseUrl = currentConfig.jiraUrl || 'https://your-company.atlassian.net';
+  const baseUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
   const url = `${baseUrl}/browse/${currentPreviewTicket.key}`;
   ipcRenderer.invoke('open-url', url);
 }
@@ -6742,14 +6571,14 @@ async function makeFieldEditable(fieldName, ticketKey, currentValue) {
   // Para STATUS, buscar transições disponíveis do Jira
   if (fieldName === 'status') {
     if (!currentPreviewTicket || !currentPreviewTicket.availableTransitions) {
-      showToast(t('general.error'), t('status.transitionsUnavailable'), 'error');
+      showToast('Erro', 'Transições de status não disponíveis', 'error');
       return;
     }
     
     const transitions = currentPreviewTicket.availableTransitions;
     
     parent.innerHTML = `
-      <select class="inline-edit-select" id="${fieldName}-edit" onchange="saveField('${fieldName}', '${ticketKey}', this.value, this.options[this.selectedIndex].text)" style="background: #e3f2fd; color: #1976d2; border: 2px solid #1976d2;">
+      <select class="inline-edit-select" id="${fieldName}-edit" onchange="saveField('${fieldName}', '${ticketKey}', this.value)" style="background: #e3f2fd; color: #1976d2; border: 2px solid #1976d2;">
         <option value="">Status Atual: ${safeValue}</option>
         ${transitions.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
       </select>
@@ -6818,7 +6647,7 @@ async function makeFieldEditable(fieldName, ticketKey, currentValue) {
         </select>
       `;
     } else {
-      showToast(t('general.error'), t('status.teamsLoadError'), 'error');
+      showToast('Erro', 'Não foi possível carregar times do Jira', 'error');
       cancelEdit(fieldName, currentValue);
     }
     return;
@@ -6972,7 +6801,7 @@ async function saveFieldFromInputDirect(fieldName, ticketKey) {
   
   const value = input.value.trim();
   if (!value) {
-    showToast(t('general.error'), t('field.enterValue'), 'error');
+    showToast('Erro', 'Digite um valor', 'error');
     return;
   }
   
@@ -7057,12 +6886,12 @@ function selectTeam(fieldName, teamName) {
 // Salvar campo editado
 async function saveField(fieldName, ticketKey, newValue, displayName = null) {
   if (!newValue || newValue.trim() === '') {
-    showToast(t('general.error'), t('field.selectOption'), 'error');
+    showToast('Erro', 'Selecione uma opção', 'error');
     return;
   }
   
   debugLog(`💾 Salvando ${fieldName}:`, newValue, displayName);
-  showToast(t('general.saving'), t('field.saving'), 'info');
+  showToast('Salvando', 'Atualizando ticket...', 'info');
   
   try {
     const result = await ipcRenderer.invoke('update-ticket-field', {
@@ -7073,29 +6902,15 @@ async function saveField(fieldName, ticketKey, newValue, displayName = null) {
     });
     
     if (result.success) {
-      showToast(t('general.success'), t('field.saved'), 'success');
-      
-      // 🎉 Confetti ao resolver/fechar ticket
-      if (fieldName === 'status') {
-        const transitionName = (displayName || newValue || '').toLowerCase();
-        const resolvedStatuses = ['resolve', 'resolved', 'done', 'closed', 'cancelled', 'canceled', 'complete', 'resolvido', 'resolver', 'fechado', 'cancelado', 'concluído', 'concluido', 'finalizado'];
-        const shouldCelebrate = resolvedStatuses.some(s => transitionName.includes(s));
-        if (shouldCelebrate) {
-          if (window.confetti && typeof window.confetti.fireworks === 'function') {
-            console.log('🎉 Confetti disparado para:', transitionName);
-            window.confetti.fireworks();
-          }
-        }
-      }
-      
-      // Recarregar preview com flash sutil
-      setTimeout(() => refreshTicketPreview(ticketKey), 500);
+      showToast('Sucesso', 'Campo atualizado!', 'success');
+      // Recarregar preview após 800ms
+      setTimeout(() => openTicketPreview(ticketKey), 800);
     } else {
       throw new Error(result.error);
     }
   } catch (error) {
     console.error('Erro ao salvar campo:', error);
-    showToast(t('general.error'), error.message || t('field.saveFailed'), 'error');
+    showToast('Erro', error.message || 'Falha ao atualizar', 'error');
   }
 }
 
@@ -7121,6 +6936,12 @@ function cancelEdit(fieldName, originalValue) {
   }
 }
 
+function openCurrentTicketInWebview() {
+  if (!currentPreviewTicket) return;
+  const baseUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
+  const url = `${baseUrl}/browse/${currentPreviewTicket.key}`;
+  ipcRenderer.invoke('open-jira-webview', url, currentPreviewTicket.key);
+}
 
 // Drag and Drop
 function setupDragAndDropForContainer(container) {
@@ -7294,8 +7115,6 @@ function showToast(message, type = 'info') {
 }
 
 // Auto Update
-let proactiveAlertsInterval = null;
-
 function startAutoUpdate() {
   if (updateInterval) {
     clearInterval(updateInterval);
@@ -7309,44 +7128,6 @@ function startAutoUpdate() {
   
   // Verificar menções também na inicialização
   checkForMentions();
-  
-  // Iniciar verificação de alertas proativos
-  startProactiveAlertsCheck();
-}
-
-async function checkProactiveAlerts() {
-  if (!currentConfig.proactiveAlerts) return;
-  
-  const hours = currentConfig.proactiveAlertsHours || 2;
-  
-  try {
-    const result = await ipcRenderer.invoke('send-proactive-alerts', hours);
-    if (result && result.alerted > 0) {
-      console.log(`[proactive-alerts] Enviados ${result.alerted} de ${result.total} alertas`);
-    }
-  } catch (err) {
-    console.error('[proactive-alerts] Erro:', err);
-  }
-}
-
-function startProactiveAlertsCheck() {
-  if (proactiveAlertsInterval) {
-    clearInterval(proactiveAlertsInterval);
-  }
-  
-  if (!currentConfig.proactiveAlerts) return;
-  
-  // Verificar a cada 15 minutos
-  const PROACTIVE_CHECK_INTERVAL = 15 * 60 * 1000;
-  
-  // Verificar após 30 segundos da inicialização
-  setTimeout(() => {
-    checkProactiveAlerts();
-  }, 30000);
-  
-  proactiveAlertsInterval = setInterval(() => {
-    checkProactiveAlerts();
-  }, PROACTIVE_CHECK_INTERVAL);
 }
 
 // Resize Handle
@@ -7519,13 +7300,13 @@ function updateLastUpdateTime() {
   
   let text = '';
   if (diff < 60) {
-    text = t('time.updatedSecondsAgo', `Updated ${diff}s ago`).replace('{time}', diff);
+    text = `Atualizado há ${diff}s`;
   } else if (diff < 3600) {
     const minutes = Math.floor(diff / 60);
-    text = t('time.updatedMinutesAgo', `Updated ${minutes} min ago`).replace('{time}', minutes);
+    text = `Atualizado há ${minutes} min`;
   } else {
     const hours = Math.floor(diff / 3600);
-    text = t('time.updatedHoursAgo', `Updated ${hours}h ago`).replace('{time}', hours);
+    text = `Atualizado há ${hours}h`;
   }
   
   document.getElementById('last-update').textContent = text;
@@ -7556,6 +7337,21 @@ function startProgressBar() {
       progressFill.style.width = '100%';
     }, 50);
   }, refreshInterval);
+}
+
+/** Piscar o card CRITICIDADE_BB quando entra novo ticket na fila (count aumentou). */
+function triggerCriticidadeBbCardBlink() {
+  const card = document.getElementById('card-criticidadebb');
+  if (!card) return;
+  card.classList.remove('stat-card-criticidadebb--blink');
+  void card.offsetWidth;
+  const onEnd = (e) => {
+    if (e.animationName !== 'criticidadeBbCardBlink') return;
+    card.classList.remove('stat-card-criticidadebb--blink');
+    card.removeEventListener('animationend', onEnd);
+  };
+  card.addEventListener('animationend', onEnd);
+  card.classList.add('stat-card-criticidadebb--blink');
 }
 
 // Animar Números ao Atualizar
@@ -7600,6 +7396,16 @@ function showEmptyState(container, type) {
       icon: '🎯',
       title: 'Área limpa!',
       message: 'Nenhum ticket em progresso no momento.'
+    },
+    welcomeithelp: {
+      icon: '👋',
+      title: 'Fila zerada!',
+      message: 'Nenhum ticket em WELCOME IT HELP no momento.'
+    },
+    criticidadebb: {
+      icon: '🚨',
+      title: 'Sem criticidade aberta!',
+      message: 'Nenhum ticket aberto com label CRITICIDADE_BB.'
     }
   };
   
@@ -7784,88 +7590,14 @@ function toggleFocusMode() {
   
   if (isFocusMode) {
     body.classList.add('focus-mode');
-    showToast('Modo Focus', t('focusMode.activated'), 'success');
+    showToast('Modo Focus', 'Ativado', 'success');
   } else {
     body.classList.remove('focus-mode');
-    showToast('Modo Focus', t('focusMode.deactivated'), 'info');
+    showToast('Modo Focus', 'Desativado', 'info');
   }
   
   // Salvar preferência
   ipcRenderer.invoke('save-config', { focusMode: isFocusMode });
-}
-
-// 📦 MODO COMPACTO - Toggle direto para super-compact
-const COMPACT_SIZE = { width: 200, height: 80 };
-const NORMAL_SIZE_KEY = 'jira-monitor-normal-window-size';
-
-async function toggleCompactMode() {
-  const container = document.querySelector('.app-container');
-  const header = document.getElementById('header');
-  const footer = document.querySelector('.footer');
-  const proSection = document.getElementById('pro-mode-section');
-  
-  if (layoutMode === 'super-compact') {
-    // Sair do modo compacto -> voltar ao normal
-    layoutMode = 'normal';
-    container.classList.remove('super-compact-layout');
-    container.classList.remove('horizontal-layout');
-    if (header) header.style.display = 'flex';
-    if (footer) footer.style.display = 'flex';
-    if (proSection && isProMode) proSection.style.display = 'block';
-    
-    // Restaurar tamanho anterior e centralizar no monitor
-    let savedSize = null;
-    try {
-      savedSize = JSON.parse(localStorage.getItem(NORMAL_SIZE_KEY));
-    } catch (e) {}
-    
-    const restoreWidth = savedSize?.width || 1200;
-    const restoreHeight = savedSize?.height || 700;
-    
-    console.log('📦 Restoring and centering:', restoreWidth, 'x', restoreHeight);
-    fetch('/api/centerWindow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ args: [restoreWidth, restoreHeight] })
-    });
-    showToast('Layout', t('layout.normal') || 'Modo Normal', 'info');
-  } else {
-    // Obter e salvar tamanho atual ANTES de compactar
-    try {
-      const response = await fetch('/api/getWindowBounds', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ args: [] })
-      });
-      const data = await response.json();
-      if (data.result && data.result.width > COMPACT_SIZE.width) {
-        localStorage.setItem(NORMAL_SIZE_KEY, JSON.stringify(data.result));
-        console.log('📦 Saved normal size to localStorage:', data.result);
-      }
-    } catch (e) {
-      console.error('📦 Error saving size:', e);
-    }
-    
-    // Entrar no modo compacto
-    layoutMode = 'super-compact';
-    container.classList.remove('horizontal-layout');
-    container.classList.add('super-compact-layout');
-    if (header) header.style.display = 'none';
-    if (footer) footer.style.display = 'none';
-    if (proSection) proSection.style.display = 'none';
-    
-    // Redimensionar janela para tamanho compacto
-    console.log('📦 Resizing to compact mode...');
-    fetch('/api/resizeWindow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ args: [COMPACT_SIZE.width, COMPACT_SIZE.height] })
-    });
-    // Sem toast ao entrar - a janela diminuindo já é feedback suficiente
-  }
-  
-  // Salvar preferência
-  ipcRenderer.invoke('save-config', { layoutMode: layoutMode });
 }
 
 // 🪟 OPACIDADE AJUSTÁVEL
@@ -7969,8 +7701,8 @@ function showThemeCustomizer() {
       // Salvar no config
       ipcRenderer.invoke('save-config', { theme: themeMode }).then(() => {
         currentConfig.theme = themeMode;
-        const themeName = themeMode === 'default' ? t('theme.defaultName') : themeMode === 'dark' ? t('theme.darkName') : t('theme.lightName');
-        showToast('Tema', `Tema ${themeName} ${t('theme.applied')}`, 'success');
+        const themeName = themeMode === 'default' ? 'Padrão' : themeMode === 'dark' ? 'Escuro' : 'Claro';
+        showToast('Tema', `Tema ${themeName} aplicado`, 'success');
       });
     });
   });
@@ -8032,7 +7764,7 @@ function showLanguageModal() {
       ipcRenderer.invoke('save-config', { language: lang }).then(() => {
         currentConfig.language = lang;
         const langName = lang === 'pt-BR' ? 'Português' : lang === 'en' ? 'English' : 'Español';
-        showToast(t('menu.language'), `${langName} ${t('language.applied')}`, 'success');
+        showToast('Idioma', `${langName} aplicado`, 'success');
         
         // Fechar modal após 1 segundo
         setTimeout(() => {
@@ -8070,7 +7802,7 @@ function applyAccentColor(color, showNotification = false) {
   });
   
   if (showNotification) {
-    showToast('Tema', t('theme.accentUpdated'), 'success');
+    showToast('Tema', 'Cor de acento atualizada', 'success');
   }
 }
 
@@ -8130,7 +7862,7 @@ function applyThemePreset(theme, showNotification = false) {
     });
     
     if (showNotification) {
-      showToast('Tema', `Tema "${theme}" ${t('theme.applied')}`, 'success');
+      showToast('Tema', `Tema "${theme}" aplicado`, 'success');
     }
   } else {
     console.warn('⚠️ Preset não encontrado:', theme);
@@ -8144,7 +7876,7 @@ function hideShortcutsCustomModal() {
 
 function resetShortcutsToDefault() {
   ipcRenderer.invoke('save-config', { customShortcuts: null });
-  showToast(t('menu.shortcuts'), t('shortcutsCustom.restored'), 'success');
+  showToast('Atalhos', 'Restaurados para padrão', 'success');
   hideShortcutsCustomModal();
 }
 
@@ -8202,11 +7934,11 @@ async function downloadReport() {
   } else if (format === 'csv') {
     downloadCSV(reportData, `jira-report-${period}.csv`);
   } else if (format === 'pdf') {
-    showToast('PDF', t('export.pdfDev'), 'info');
+    showToast('PDF', 'Função em desenvolvimento', 'info');
   }
   
   hideExportModal();
-  showToast('Export', t('export.downloaded'), 'success');
+  showToast('Export', 'Relatório baixado com sucesso', 'success');
 }
 
 function downloadJSON(data, filename) {
@@ -8336,8 +8068,6 @@ window.openTicketPreview = openTicketPreview;
 window.hideTicketPreview = hideTicketPreview;
 window.openTrendDay = openTrendDay;
 window.downloadAttachment = downloadAttachment;
-window.testDesktopNotification = testDesktopNotification;
-window.testNotification = testDesktopNotification; // alias
 
 // Função auxiliar para determinar o tipo de preview
 function getPreviewType(mimeType) {
@@ -8425,21 +8155,25 @@ window.showAttachmentPreview = async (attachmentId, filename = 'arquivo', mimeTy
   }
   
   try {
-    // Buscar conteúdo do anexo via backend (evita CORS)
-    const result = await ipcRenderer.invoke('get-attachment-content', attachmentId);
+    // Buscar URL do anexo
+    const result = await ipcRenderer.invoke('get-attachment-url', attachmentId);
     
     if (!result.success) {
-      throw new Error(result.error || 'Falha ao carregar anexo');
+      throw new Error(result.error || 'Falha ao obter URL do anexo');
     }
     
-    // Converter base64 para blob URL
-    const byteCharacters = atob(result.data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    // Fazer fetch do arquivo com autenticação
+    const response = await fetch(result.url, {
+      headers: {
+        'Authorization': `Basic ${btoa(currentConfig.jiraEmail + ':' + currentConfig.jiraApiToken)}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Falha ao carregar arquivo');
     }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: result.mimeType });
+    
+    const blob = await response.blob();
     const fileUrl = URL.createObjectURL(blob);
     
     // Armazenar URL para limpeza posterior
@@ -8484,7 +8218,6 @@ window.showAttachmentPreview = async (attachmentId, filename = 'arquivo', mimeTy
   } catch (err) {
     console.error('Erro ao carregar preview:', err);
     loader.style.display = 'none';
-    error.innerHTML = `<p>❌ ${err.message || 'Erro ao carregar arquivo'}</p>`;
     error.style.display = 'block';
   }
 };
@@ -8523,10 +8256,6 @@ console.log('✅ Funções de preview registradas:', {
 
 window.selectAndUploadAttachments = selectAndUploadAttachments;
 window.addComment = addComment;
-window.editComment = editComment;
-window.saveEditedComment = saveEditedComment;
-window.cancelEditComment = cancelEditComment;
-window.deleteComment = deleteComment;
 window.removeNotification = removeNotification;
 window.applyAccentColor = applyAccentColor;
 window.applyThemePreset = applyThemePreset;
@@ -8575,11 +8304,11 @@ async function loadPerformanceDashboard(days = 30) {
       generatePerformanceCharts(metrics);
     }
     
-    showToast(t('metrics.updated'), 'success');
+    showToast('📊 Métricas atualizadas com sucesso!', 'success');
     
   } catch (error) {
     console.error('Erro ao carregar dashboard:', error);
-    showToast(`${t('metrics.error')} ${error.message}`, 'error');
+    showToast('❌ Erro ao carregar métricas: ' + error.message, 'error');
   } finally {
     if (refreshBtn) {
       refreshBtn.classList.remove('loading');
@@ -8714,6 +8443,241 @@ function displayRecentResolved(recentTickets) {
 }
 
 // ============================================
+// 👥 VISÃO GESTOR - métricas por analista
+// ============================================
+
+let managerMetricsCache = null;
+let managerAnalystSearchTimeout = null;
+
+function getManagerAnalystEmail() {
+  const input = document.getElementById('manager-analyst-input');
+  if (!input) return null;
+  const v = (input.value || '').trim();
+  if (!v) return null;
+  if (v.includes('@') && v.includes('.')) return v;
+  const dataEmail = input.getAttribute('data-selected-email');
+  return dataEmail || null;
+}
+
+async function loadManagerMetrics(analystEmail) {
+  const summaryEl = document.getElementById('manager-metrics-summary');
+  const headingEl = document.getElementById('manager-metrics-heading');
+  const refreshBtn = document.getElementById('manager-metrics-refresh-btn');
+  if (!summaryEl) return;
+
+  const email = (analystEmail != null && String(analystEmail).trim()) ? String(analystEmail).trim() : null;
+
+  if (refreshBtn) {
+    refreshBtn.classList.add('loading');
+    refreshBtn.disabled = true;
+  }
+
+  try {
+    const result = await ipcRenderer.invoke('get-performance-metrics-for-user', email || null, 30);
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Falha ao carregar métricas');
+    }
+    const metrics = result.data;
+    managerMetricsCache = metrics;
+    const name = email
+      ? (email.split('@')[0].split('.')[0] || email).replace(/^./, c => c.toUpperCase())
+      : 'Suas métricas';
+    if (headingEl) headingEl.textContent = name === 'Suas métricas' ? name : `Métricas: ${name}`;
+
+    document.getElementById('manager-perf-avg-resolution').textContent =
+      metrics.avgResolutionDays >= 1 ? `${metrics.avgResolutionDays}d` : `${metrics.avgResolutionHours}h`;
+    document.getElementById('manager-perf-tickets-resolved').textContent = metrics.ticketsResolved;
+    document.getElementById('manager-perf-rate-week').textContent = metrics.ticketsPerWeek.toFixed(1);
+
+    const recentList = document.getElementById('manager-recent-resolved-list');
+    if (recentList) {
+      displayManagerRecentResolved(metrics.recentResolved || []);
+    }
+    const detailsEl = document.getElementById('manager-performance-details');
+    if (detailsEl && detailsEl.style.display !== 'none') {
+      generateManagerCharts(metrics);
+    }
+    summaryEl.style.display = 'block';
+  } catch (error) {
+    console.error('Erro ao carregar métricas do analista:', error);
+    showToast('Erro ao carregar métricas: ' + error.message, 'error');
+    if (headingEl) headingEl.textContent = 'Métricas';
+    summaryEl.style.display = 'none';
+  } finally {
+    if (refreshBtn) {
+      refreshBtn.classList.remove('loading');
+      refreshBtn.disabled = false;
+    }
+  }
+}
+
+function displayManagerRecentResolved(recentTickets) {
+  const container = document.getElementById('manager-recent-resolved-list');
+  if (!container) return;
+  container.innerHTML = '';
+  const list = Array.isArray(recentTickets) ? recentTickets.slice(0, 10) : [];
+  if (list.length === 0) {
+    container.innerHTML = '<p style="text-align: center; color: #999; padding: 12px; font-size: 12px;">Nenhum ticket resolvido recentemente</p>';
+    return;
+  }
+  list.forEach(ticket => {
+    const item = document.createElement('div');
+    item.className = 'recent-resolved-item';
+    item.setAttribute('role', 'button');
+    item.setAttribute('tabindex', '0');
+    const key = ticket.key;
+    item.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.openTicketPreview === 'function') {
+        window.openTicketPreview(key);
+      } else if (typeof openTicketPreview === 'function') {
+        openTicketPreview(key);
+      }
+    });
+    item.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        item.click();
+      }
+    });
+    const resolvedDate = new Date(ticket.resolved);
+    item.innerHTML = `
+      <div class="recent-resolved-info">
+        <div class="recent-resolved-key">${escapeHtml(ticket.key)}</div>
+        <div class="recent-resolved-summary">${escapeHtml(ticket.summary || '')}</div>
+      </div>
+      <div class="recent-resolved-meta">
+        <span>${escapeHtml(ticket.priority || 'Normal')}</span>
+        <span>${getTimeAgo(resolvedDate)}</span>
+      </div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function generateManagerCharts(metrics) {
+  if (!metrics) return;
+  generateSimplePieChart('manager-chart-by-priority', metrics.byPriority || {}, 'manager-chart-legend-priority');
+  generateSimplePieChart('manager-chart-by-project', metrics.byProject || {}, 'manager-chart-legend-project');
+  const heatmapContainer = document.getElementById('manager-heatmap-by-hour');
+  if (heatmapContainer) {
+    heatmapContainer.innerHTML = '';
+    const activityByHour = metrics.activityByHour || Array(24).fill(0);
+    const max = Math.max(...activityByHour, 1);
+    activityByHour.forEach((count, hour) => {
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell';
+      const intensity = Math.min(5, Math.floor((count / max) * 5));
+      cell.classList.add(`intensity-${intensity}`);
+      cell.title = `${hour}h: ${count} tickets`;
+      heatmapContainer.appendChild(cell);
+    });
+  }
+}
+
+function showManagerAnalystSuggestions(users) {
+  const wrap = document.getElementById('manager-analyst-input-wrap');
+  const list = document.getElementById('manager-analyst-suggestions');
+  if (!list || !wrap) return;
+  list.innerHTML = '';
+  if (!users || users.length === 0) {
+    list.classList.remove('show');
+    return;
+  }
+  users.forEach((user, index) => {
+    const email = user.emailAddress || user.email || '';
+    const displayName = user.displayName || email.split('@')[0] || 'Sem nome';
+    const item = document.createElement('div');
+    item.className = 'manager-analyst-suggestion-item';
+    item.setAttribute('data-email', email);
+    item.innerHTML = `<span>${escapeHtml(displayName)}</span>${email ? `<span class="suggestion-email">${escapeHtml(email)}</span>` : ''}`;
+    item.addEventListener('click', () => {
+      const input = document.getElementById('manager-analyst-input');
+      if (input) {
+        input.value = displayName;
+        input.setAttribute('data-selected-email', email);
+      }
+      list.classList.remove('show');
+      loadManagerMetrics(email);
+    });
+    list.appendChild(item);
+  });
+  list.classList.add('show');
+}
+
+function hideManagerAnalystSuggestions() {
+  const list = document.getElementById('manager-analyst-suggestions');
+  if (list) list.classList.remove('show');
+}
+
+function setupManagerAnalystAutocomplete() {
+  const input = document.getElementById('manager-analyst-input');
+  const wrap = document.getElementById('manager-analyst-input-wrap');
+  if (!input || !wrap) return;
+
+  input.addEventListener('focus', async () => {
+    const q = (input.value || '').trim();
+    if (q.length < 2) {
+      const history = currentConfig.userHistory || [];
+      const users = history.map(email => ({
+        emailAddress: email,
+        email,
+        displayName: email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ')
+      }));
+      showManagerAnalystSuggestions(users);
+      return;
+    }
+    if (managerAnalystSearchTimeout) clearTimeout(managerAnalystSearchTimeout);
+    managerAnalystSearchTimeout = setTimeout(async () => {
+      try {
+        const result = await ipcRenderer.invoke('search-users', q, 15);
+        const users = (result && result.data) ? result.data : [];
+        showManagerAnalystSuggestions(users);
+      } catch (err) {
+        console.error('Erro ao buscar usuários:', err);
+        hideManagerAnalystSuggestions();
+      }
+    }, 300);
+  });
+
+  input.addEventListener('input', () => {
+    input.removeAttribute('data-selected-email');
+    const q = (input.value || '').trim();
+    if (managerAnalystSearchTimeout) clearTimeout(managerAnalystSearchTimeout);
+    if (q.length < 2) {
+      hideManagerAnalystSuggestions();
+      return;
+    }
+    managerAnalystSearchTimeout = setTimeout(async () => {
+      try {
+        const result = await ipcRenderer.invoke('search-users', q, 15);
+        const users = (result && result.data) ? result.data : [];
+        showManagerAnalystSuggestions(users);
+      } catch (err) {
+        console.error('Erro ao buscar usuários:', err);
+        hideManagerAnalystSuggestions();
+      }
+    }, 350);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const email = input.getAttribute('data-selected-email') || (input.value || '').trim();
+      if (email && email.includes('@')) {
+        hideManagerAnalystSuggestions();
+        loadManagerMetrics(email);
+      }
+    }
+    if (e.key === 'Escape') hideManagerAnalystSuggestions();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (wrap && !wrap.contains(e.target)) hideManagerAnalystSuggestions();
+  });
+}
+
+// ============================================
 // ⏱️ TIMER / POMODORO - v1.5.0
 // ============================================
 
@@ -8841,7 +8805,7 @@ function formatTime(seconds) {
 
 function switchTimerMode(mode) {
   if (timerState.running) {
-    showToast(t('timer.stopBeforeSwitch'), 'warning');
+    showToast('⚠️ Pare o timer antes de trocar de modo', 'warning');
     return;
   }
   
@@ -8881,7 +8845,7 @@ function completePomodoroSession() {
   
   if (timerState.pomodoroType === 'work') {
     // Concluiu trabalho, iniciar pausa
-    showToast(t('timer.pomodoroComplete'), 'success');
+    showToast('✅ Pomodoro concluído! Hora da pausa.', 'success');
     timerState.pomodoroType = 'break';
     
     // Salvar worklog automaticamente se configurado
@@ -8891,7 +8855,7 @@ function completePomodoroSession() {
     }
   } else {
     // Concluiu pausa, iniciar trabalho
-    showToast(t('timer.breakComplete'), 'success');
+    showToast('✅ Pausa concluída! De volta ao trabalho.', 'success');
     timerState.pomodoroType = 'work';
     timerState.pomodoroSession++;
     
@@ -8907,19 +8871,19 @@ async function saveWorklog(timeSpentSeconds = null) {
   const secondsToLog = timeSpentSeconds || timerState.seconds;
   
   if (!timerState.ticketKey) {
-    showToast(t('timer.noTicketSelected'), 'warning');
+    showToast('⚠️ Nenhum ticket selecionado para o timer', 'warning');
     return;
   }
   
   if (secondsToLog < 60) {
-    showToast(t('timer.timeTooShort'), 'warning');
+    showToast('⚠️ Tempo muito curto para registrar (mínimo 1 minuto)', 'warning');
     return;
   }
   
   const comment = document.getElementById('timer-worklog-comment').value.trim();
   
   try {
-    showToast(t('timer.savingWorklog'), 'info');
+    showToast('💾 Salvando worklog...', 'info');
     
     const result = await ipcRenderer.invoke('add-worklog', 
       timerState.ticketKey, 
@@ -8937,7 +8901,7 @@ async function saveWorklog(timeSpentSeconds = null) {
     
   } catch (error) {
     console.error('Erro ao salvar worklog:', error);
-    showToast(`${t('timer.worklogError')} ${error.message}`, 'error');
+    showToast('❌ Erro ao salvar worklog: ' + error.message, 'error');
   }
 }
 
@@ -9120,7 +9084,7 @@ function saveTemplate() {
   const isInternal = document.getElementById('template-internal').checked;
   
   if (!name || !text) {
-    showToast(t('templates.nameTextRequired'), 'error');
+    showToast('❌ Nome e texto são obrigatórios!', 'error');
     return;
   }
   
@@ -9379,7 +9343,9 @@ window.debugCustomCounters = async function() {
   
   const allZero = (currentStats.simcardPendingTickets?.count || 0) === 0 &&
                   (currentStats.l0BotTickets?.count || 0) === 0 &&
-                  (currentStats.l1OpenTickets?.count || 0) === 0;
+                  (currentStats.l1OpenTickets?.count || 0) === 0 &&
+                  (currentStats.welcomeItHelpTickets?.count || 0) === 0 &&
+                  (currentStats.criticidadeBbTickets?.count || 0) === 0;
   
   if (allZero) {
     console.log('⚠️  Todos os contadores estão em 0');
@@ -9396,6 +9362,8 @@ window.debugCustomCounters = async function() {
     if ((currentStats.simcardPendingTickets?.count || 0) === 0) emptyOnes.push('SIM Cards');
     if ((currentStats.l0BotTickets?.count || 0) === 0) emptyOnes.push('L0 Bot');
     if ((currentStats.l1OpenTickets?.count || 0) === 0) emptyOnes.push('L1 Open');
+    if ((currentStats.welcomeItHelpTickets?.count || 0) === 0) emptyOnes.push('WELCOME IT HELP');
+    if ((currentStats.criticidadeBbTickets?.count || 0) === 0) emptyOnes.push('CRITICIDADE_BB');
     
     if (emptyOnes.length > 0) {
       console.log(`⚠️  Contadores vazios: ${emptyOnes.join(', ')}`);
@@ -9476,284 +9444,3 @@ if (typeof window.refreshData !== 'function') {
 console.log('🎨 UX Enhancements v1.6.0: Templates, Confetti, Priority Colors');
 console.log('🔍 Debug: Execute debugCustomCounters() no console para diagnosticar contadores');
 
-// ========== CANNED RESPONSES (Respostas Prontas) ==========
-let cannedResponsesData = { personal: [] };
-let currentCannedTicketKey = null;
-let cannedResponsesFilter = '';
-
-async function loadCannedResponses() {
-  try {
-    const result = await ipcRenderer.invoke('get-canned-responses');
-    if (result.success) {
-      cannedResponsesData = result.data;
-    }
-  } catch (e) {
-    console.error('Erro ao carregar respostas prontas:', e);
-  }
-}
-
-function openCannedResponses(ticketKey) {
-  currentCannedTicketKey = ticketKey;
-  loadCannedResponses().then(() => {
-    renderCannedResponsesModal();
-  });
-}
-
-function renderCannedResponsesModal() {
-  // Remover modal existente se houver
-  const existingModal = document.getElementById('canned-responses-modal');
-  if (existingModal) existingModal.remove();
-  
-  const filteredResponses = (cannedResponsesData.personal || []).filter(r => 
-    !cannedResponsesFilter || r.name.toLowerCase().includes(cannedResponsesFilter.toLowerCase())
-  );
-  
-  const modal = document.createElement('div');
-  modal.id = 'canned-responses-modal';
-  modal.className = 'canned-responses-modal';
-  modal.innerHTML = `
-    <div class="canned-responses-container">
-      <div class="canned-responses-header">
-        <h2>📋 Respostas Prontas</h2>
-        <button class="canned-close-btn" onclick="closeCannedResponses()">✕</button>
-      </div>
-      
-      <div class="canned-responses-body">
-        <div class="canned-responses-sidebar">
-          <div class="canned-search">
-            <input type="text" 
-              id="canned-search-input"
-              placeholder="🔍 Buscar por nome..." 
-              value="${cannedResponsesFilter}"
-              oninput="filterCannedResponses(this.value)">
-          </div>
-          
-          <div class="canned-category">
-            <div class="canned-category-header">
-              <span>Minhas Respostas</span>
-              <span class="canned-count">${filteredResponses.length}</span>
-            </div>
-            <div class="canned-list" id="canned-list-items">
-              ${filteredResponses.map(r => `
-                <div class="canned-item ${r.id === window.selectedCannedId ? 'selected' : ''}" 
-                     onclick="selectCannedResponse('${r.id}')">
-                  ${r.name}
-                </div>
-              `).join('') || '<div class="canned-empty">Nenhuma resposta salva</div>'}
-            </div>
-          </div>
-          
-          <button class="btn-create-canned" onclick="createNewCannedResponse()">
-            ➕ Criar nova
-          </button>
-        </div>
-        
-        <div class="canned-responses-content">
-          <div id="canned-preview-area">
-            ${window.selectedCannedId ? renderCannedPreview() : `
-              <div class="canned-placeholder">
-                <p>👈 Selecione uma resposta para visualizar</p>
-                <p>ou clique em "Criar nova" para adicionar</p>
-              </div>
-            `}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  document.body.appendChild(modal);
-  
-  // Focar no campo de busca
-  setTimeout(() => document.getElementById('canned-search-input')?.focus(), 100);
-}
-
-function renderCannedPreview() {
-  const response = findCannedById(window.selectedCannedId);
-  if (!response) return '<div class="canned-placeholder">Resposta não encontrada</div>';
-  
-  return `
-    <div class="canned-preview">
-      <div class="canned-preview-header">
-        <div class="canned-preview-actions">
-          <button onclick="deleteCannedResponse('${response.id}')" title="Deletar">🗑️ Deletar</button>
-          <button onclick="editCannedResponse('${response.id}')" title="Editar">✏️ Editar</button>
-        </div>
-      </div>
-      
-      <div class="canned-preview-name">
-        <label>Nome</label>
-        <div>${response.name}</div>
-      </div>
-      
-      <div class="canned-preview-content">
-        <label>Resposta</label>
-        <div class="canned-content-text">${response.content}</div>
-      </div>
-      
-      <div class="canned-preview-footer">
-        <button class="btn-cancel-canned" onclick="closeCannedResponses()">Cancelar</button>
-        <button class="btn-insert-canned" onclick="insertCannedResponse()">Inserir resposta</button>
-      </div>
-    </div>
-  `;
-}
-
-function findCannedById(id) {
-  return (cannedResponsesData.personal || []).find(r => r.id === id);
-}
-
-function selectCannedResponse(id) {
-  window.selectedCannedId = id;
-  renderCannedResponsesModal();
-}
-
-function filterCannedResponses(value) {
-  cannedResponsesFilter = value;
-  renderCannedResponsesModal();
-}
-
-function closeCannedResponses() {
-  const modal = document.getElementById('canned-responses-modal');
-  if (modal) modal.remove();
-  window.selectedCannedId = null;
-  cannedResponsesFilter = '';
-}
-
-function insertCannedResponse() {
-  const response = findCannedById(window.selectedCannedId);
-  if (!response || !currentCannedTicketKey) return;
-  
-  const textarea = document.getElementById(`new-comment-textarea-${currentCannedTicketKey}`);
-  if (textarea) {
-    // Inserir no cursor ou no final
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    
-    textarea.value = text.substring(0, start) + response.content + text.substring(end);
-    textarea.focus();
-    
-    // Posicionar cursor após o texto inserido
-    const newPos = start + response.content.length;
-    textarea.setSelectionRange(newPos, newPos);
-  }
-  
-  closeCannedResponses();
-  showToast(t('general.inserted'), t('cannedResponses.inserted'), 'success');
-}
-
-function createNewCannedResponse() {
-  window.selectedCannedId = null;
-  
-  const previewArea = document.getElementById('canned-preview-area');
-  if (previewArea) {
-    previewArea.innerHTML = `
-      <div class="canned-edit-form">
-        <h3>➕ Nova Resposta</h3>
-        
-        <div class="canned-form-group">
-          <label>Nome</label>
-          <input type="text" id="canned-edit-name" placeholder="Ex: Saudação inicial">
-        </div>
-        
-        <div class="canned-form-group">
-          <label>Resposta</label>
-          <textarea id="canned-edit-content" rows="10" placeholder="Digite o conteúdo da resposta..."></textarea>
-        </div>
-        
-        <div class="canned-form-actions">
-          <button class="btn-cancel-canned" onclick="renderCannedResponsesModal()">Cancelar</button>
-          <button class="btn-save-canned" onclick="saveCannedResponseForm()">💾 Salvar</button>
-        </div>
-      </div>
-    `;
-    
-    // Focar no campo de nome
-    setTimeout(() => document.getElementById('canned-edit-name')?.focus(), 100);
-  }
-}
-
-function editCannedResponse(id) {
-  const response = findCannedById(id);
-  if (!response) return;
-  
-  const previewArea = document.getElementById('canned-preview-area');
-  if (previewArea) {
-    previewArea.innerHTML = `
-      <div class="canned-edit-form">
-        <h3>✏️ Editar Resposta</h3>
-        
-        <div class="canned-form-group">
-          <label>Nome</label>
-          <input type="text" id="canned-edit-name" value="${response.name}">
-        </div>
-        
-        <div class="canned-form-group">
-          <label>Resposta</label>
-          <textarea id="canned-edit-content" rows="10">${response.content}</textarea>
-        </div>
-        
-        <input type="hidden" id="canned-edit-id" value="${id}">
-        
-        <div class="canned-form-actions">
-          <button class="btn-cancel-canned" onclick="renderCannedResponsesModal()">Cancelar</button>
-          <button class="btn-save-canned" onclick="saveCannedResponseForm()">💾 Salvar</button>
-        </div>
-      </div>
-    `;
-  }
-}
-
-async function saveCannedResponseForm() {
-  const name = document.getElementById('canned-edit-name')?.value.trim();
-  const content = document.getElementById('canned-edit-content')?.value.trim();
-  const id = document.getElementById('canned-edit-id')?.value || null;
-  
-  if (!name || !content) {
-    showToast(t('general.error'), t('cannedResponses.fillRequired'), 'error');
-    return;
-  }
-  
-  try {
-    const result = await ipcRenderer.invoke('save-canned-response', { id, name, content, category: 'personal' });
-    if (result.success) {
-      cannedResponsesData = result.data;
-      showToast(t('general.saved'), t('cannedResponses.saved'), 'success');
-      window.selectedCannedId = null;
-      renderCannedResponsesModal();
-    } else {
-      throw new Error(result.error);
-    }
-  } catch (e) {
-    showToast(t('general.error'), t('cannedResponses.saveFailed'), 'error');
-  }
-}
-
-async function deleteCannedResponse(id) {
-  if (!confirm('Tem certeza que deseja deletar esta resposta?')) return;
-  
-  try {
-    const result = await ipcRenderer.invoke('delete-canned-response', id, 'personal');
-    if (result.success) {
-      cannedResponsesData = result.data;
-      window.selectedCannedId = null;
-      showToast(t('general.deleted'), t('cannedResponses.deleted'), 'success');
-      renderCannedResponsesModal();
-    }
-  } catch (e) {
-    showToast(t('general.error'), t('cannedResponses.deleteFailed'), 'error');
-  }
-}
-
-// Expor funções globalmente
-window.openCannedResponses = openCannedResponses;
-window.closeCannedResponses = closeCannedResponses;
-window.selectCannedResponse = selectCannedResponse;
-window.filterCannedResponses = filterCannedResponses;
-window.insertCannedResponse = insertCannedResponse;
-window.createNewCannedResponse = createNewCannedResponse;
-window.editCannedResponse = editCannedResponse;
-window.saveCannedResponseForm = saveCannedResponseForm;
-window.deleteCannedResponse = deleteCannedResponse;
-window.renderCannedResponsesModal = renderCannedResponsesModal;
