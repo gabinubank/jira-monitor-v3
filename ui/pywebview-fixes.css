@@ -25,8 +25,44 @@
     overflow-x: hidden !important;
 }
 
-/* Remover drag regions do Electron */
-* {
+/*
+ * PyWebView: não usar * { no-drag } — isso anula o drag do modo super-compacto
+ * e do header (webkit-app-region perde para !important universal).
+ * Definimos drag só onde faz sentido e no-drag em controles.
+ */
+.pywebview-drag-region {
+    -webkit-app-region: drag !important;
+}
+
+.app-container.super-compact-layout,
+.app-container.super-compact-layout > .content {
+    -webkit-app-region: drag !important;
+}
+
+/* Sobrescreve styles.css (stats-grid tinha no-drag) — permite arrastar nos espaços entre os cards */
+.app-container.super-compact-layout .stats-grid {
+    -webkit-app-region: drag !important;
+}
+
+/* Cards clicáveis no compacto: só o card é no-drag (clique); gaps/área ao redor permitem arrastar */
+.app-container.super-compact-layout .stat-card,
+.app-container.super-compact-layout .stat-card * {
+    -webkit-app-region: no-drag !important;
+}
+
+/* Modo micro (barra mínima), se visível */
+#micro-mode {
+    -webkit-app-region: drag !important;
+}
+
+#micro-mode button,
+#micro-mode .micro-stat {
+    -webkit-app-region: no-drag !important;
+}
+
+/* Controles interativos (sobre o header / áreas de drag) */
+button, a, input, select, textarea, .header-btn, .clickable, [onclick],
+.super-compact-exit-btn, .menu-btn, #menu-btn {
     -webkit-app-region: no-drag !important;
 }
 

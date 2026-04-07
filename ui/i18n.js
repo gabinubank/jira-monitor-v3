@@ -119,6 +119,7 @@ const i18n = {
     'docs.title': '📚 Documentação',
     'docs.l1': 'Documentação L1',
     'docs.bpo': 'Documentação BPO',
+    'docs.bpoAeBrasil': 'Guia de Suporte BPO/AE Brasil',
     
     // Daily Activity
     'daily.title': '📊 Atividade de Hoje',
@@ -211,24 +212,6 @@ const i18n = {
     'settings.language': '🌍 Idioma',
     'settings.save': 'Salvar',
     'settings.cancel': 'Cancelar',
-    'settings.placeholderUrl': 'https://sua-empresa.atlassian.net',
-    'settings.placeholderEmail': 'seu.email@empresa.com',
-    'settings.placeholderToken': 'Seu API token do Jira',
-    
-    // Updated ago (tempo relativo)
-    'time.updatedSecondsAgo': 'Atualizado há {time}s',
-    'time.updatedMinutesAgo': 'Atualizado há {time} min',
-    'time.updatedHoursAgo': 'Atualizado há {time}h',
-    'time.updated': 'Atualizado',
-    'time.lastUpdate': 'Última atualização',
-    'time.now': 'agora',
-    'time.minutesAgo': 'há {time} minutos',
-    'time.hoursAgo': 'há {time} horas',
-    'time.daysAgo': 'há {time} dias',
-    
-    // Badge modals
-    'badge.slaTitle': '⏰ Tickets com SLA em Alerta (vencendo em até 30 minutos)',
-    'badge.oldTitle': '📅 Tickets Antigos (sem atualização há 7+ dias)',
     
     // Footer
     'footer.loading': 'Carregando...',
@@ -254,7 +237,7 @@ const i18n = {
     // Add User Modal
     'addUser.title': '➕ Adicionar Usuário para Monitorar',
     'addUser.description': 'Digite o e-mail do usuário que deseja monitorar:',
-    'addUser.placeholder': 'user@company.com',
+    'addUser.placeholder': 'exemplo@nubank.com.br',
     'addUser.cancel': 'Cancelar',
     'addUser.add': 'Adicionar',
     
@@ -272,356 +255,42 @@ const i18n = {
     'context.openExternal': '🌐 Abrir Link em Navegador Externo',
     'context.inspect': '🔧 Inspecionar Elemento',
     
-    // Onboarding Tour
-    'tour.step1.title': '📊 Visão Geral',
-    'tour.step1.description': 'Aqui você vê seus contadores de tickets (Total, Suporte, Pendentes, etc). Clique nos cards para expandir e ver a lista completa de tickets.',
-    'tour.step2.title': '🔄 Atualizar',
-    'tour.step2.description': 'Clique aqui para forçar uma sincronização manual com o Jira. O app atualiza automaticamente em intervalos configuráveis.',
-    'tour.step3.title': '🔔 Notificações',
-    'tour.step3.description': 'Veja alertas recentes e histórico de mudanças nos seus tickets. Você será notificado sobre novos tickets, mudanças de status e menções.',
-    'tour.step4.title': '⚙️ Menu & Configurações',
-    'tour.step4.description': 'Acesse o Modo Pro, Temas personalizados, Ajustes de conexão e muito mais. Use Cmd+, para abrir rapidamente as configurações.',
-    'tour.step5.title': '🎉 Pronto para começar!',
-    'tour.step5.description': 'Você já conhece o básico do Jira Monitor. Use Cmd+K para busca rápida de tickets e Cmd+P para ativar o Modo Pro. Boa sorte!',
+    // Onboarding Tour Interativo (15 passos)
+    'tour.step1.title': '👋 Bem-vindo ao Jira Monitor!',
+    'tour.step1.description': 'Este é um tour INTERATIVO! Você vai experimentar as funcionalidades na prática. Prepare-se para uma experiência completa! 🚀',
+    'tour.step2.title': '📊 Visão Geral dos Tickets',
+    'tour.step2.description': 'Aqui você vê seus contadores em tempo real: Total, Suporte, Pendentes e muito mais. Clique nos cards para expandir e ver a lista completa com cores de SLA (🟢 verde, 🟡 amarelo, 🔴 vermelho).',
+    'tour.step3.title': '🔔 Notificações Ativadas!',
+    'tour.step3.description': 'Você acabou de permitir notificações! 🎉 Agora receberá alertas quando: tickets mudarem de status, SLA ficar crítico ou você for mencionado.',
+    'tour.step4.title': '📐 Layouts: 3 Modos Disponíveis',
+    'tour.step4.description': 'O Jira Monitor tem 3 layouts: Normal (atual), Horizontal e Super Compacto (~80px de altura!). Vamos experimentar todos agora!',
+    'tour.step5.title': '🎯 AÇÃO: Abra o Menu!',
+    'tour.step5.description': 'Clique no botão de Menu (☰) aqui ao lado para ver as opções. Depois clique em "Próximo".',
+    'tour.step6.title': '🎯 AÇÃO: Clique em "Alternar Layout"',
+    'tour.step6.description': 'Clique em "Alternar Layout" (ou pressione Cmd+L) para mudar para o Layout Horizontal. O tour avança automaticamente quando você fizer isso!',
+    'tour.step7.title': '🎯 AÇÃO: Pressione Cmd+L Novamente',
+    'tour.step7.description': 'Pressione Cmd+L para ver o Layout Super Compacto - ideal para monitor secundário! Apenas ~80px de altura. O tour avança automaticamente!',
+    'tour.step8.title': '🎯 AÇÃO: Volte ao Layout Normal',
+    'tour.step8.description': 'Pressione Cmd+L mais uma vez para voltar ao Layout Normal. O tour avança automaticamente quando você fizer isso! 🎉',
+    'tour.step9.title': '👨‍💻 Modo Pro: Recursos Avançados',
+    'tour.step9.description': 'O Modo Pro ativa recursos avançados: editar campos, adicionar comentários, fazer upload de anexos, mencionar pessoas (@) e muito mais!',
+    'tour.step10.title': '🎯 AÇÃO: Ative o Modo Pro!',
+    'tour.step10.description': 'Clique em "Modo Pro" (ou pressione Cmd+P) para ativar. Veja o indicador aparecer no topo! O tour avança automaticamente quando você ativar.',
+    'tour.step11.title': '🎨 Temas: Personalize Tudo',
+    'tour.step11.description': 'Clique em "Personalizar Tema" para ver as opções: Dark/Light mode, presets (Cyberpunk, Nord, Dracula) e cores customizáveis. Experimente depois!',
+    'tour.step12.title': '🔄 Atualização Manual',
+    'tour.step12.description': 'Clique aqui para sincronizar com o Jira imediatamente. O app já atualiza automaticamente a cada 60 segundos (configurável).',
+    'tour.step13.title': '🔍 Busca Rápida: Cmd+K',
+    'tour.step13.description': 'Pressione Cmd+K a qualquer momento para buscar tickets por ID, título ou descrição. É instantâneo!',
+    'tour.step14.title': '⌨️ Atalhos de Teclado',
+    'tour.step14.description': 'Principais atalhos:\n• Cmd+K: Busca rápida\n• Cmd+L: Alternar layouts\n• Cmd+P: Modo Pro\n• Cmd+R: Atualizar dados\n• Cmd+,: Configurações\n• Cmd+T: Timer/Pomodoro',
+    'tour.step15.title': '🎉 Tour Completo!',
+    'tour.step15.description': 'Parabéns! Você experimentou as principais funcionalidades. Os dados do Jira vão carregar agora. Explore à vontade e boa sorte! 🚀',
     'tour.buttons.next': 'Próximo',
     'tour.buttons.previous': 'Anterior',
-    'tour.buttons.done': 'Concluir',
+    'tour.buttons.done': 'Começar!',
     'tour.buttons.skip': 'Pular',
-    'tour.success': '✅ Tutorial concluído! Explore à vontade.',
-    
-    // Tooltips / Titles
-    'tooltip.totalTickets': 'Total de Tickets',
-    'tooltip.activateAdvanced': 'Ativar recursos avançados',
-    'tooltip.refreshManual': 'Atualizar dados manualmente (Cmd+R)',
-    'tooltip.openSettings': 'Abrir configurações (Cmd+,)',
-    'tooltip.openOkta': 'Abrir Nubank OKTA',
-    'tooltip.openJamf': 'Abrir JAMF Cloud',
-    'tooltip.openJiraPortal': 'Abrir Jira Portal',
-    'tooltip.openGoogleAdmin': 'Abrir Google Admin Console',
-    'tooltip.quickSearch': 'Busca rápida de tickets (Cmd+K)',
-    'tooltip.viewShortcuts': 'Ver todos os atalhos de teclado',
-    'tooltip.templates': 'Templates de resposta rápida (Cmd+Shift+T)',
-    'tooltip.openTimer': 'Abrir Timer/Pomodoro (Cmd+T)',
-    'tooltip.customizeTheme': 'Personalizar tema',
-    'tooltip.toggleLayout': 'Alternar Layout (Cmd+L)',
-    'tooltip.adjustOpacity': 'Ajustar transparência da janela',
-    'tooltip.exportReport': 'Exportar relatório',
-    'tooltip.connectionStatus': 'Status da conexão',
-    'tooltip.resetNotifications': 'Resetar histórico de notificações limpas',
-    'tooltip.zoomOut': 'Diminuir Zoom (Cmd+-)',
-    'tooltip.zoomIn': 'Aumentar Zoom (Cmd++)',
-    'tooltip.densityMode': 'Modo de Densidade',
-    'tooltip.monitoredUser': 'Usuário Monitorado',
-    'tooltip.backToNormal': 'Voltar ao modo normal (ESC ou Cmd+L)',
-    'tooltip.copyKey': 'Copiar key',
-    'tooltip.openInJira': 'Abrir no Jira',
-    'tooltip.removeFromHistory': 'Remover do histórico',
-    'tooltip.openInNewWindow': 'Abrir em nova janela',
-    'tooltip.removeNotification': 'Remover notificação',
-    'tooltip.clickToEdit': 'Clique para editar',
-    
-    // Stat Cards
-    'card.totalTicketsIT': 'Total de Tickets - IT',
-    'card.waitingSupport': 'Waiting for Support - IT',
-    'card.waitingCustomer': 'Waiting for Customer - IT',
-    'card.ticketsPending': 'Tickets Pending - IT',
-    'card.ticketsInProgress': 'Tickets In Progress - IT',
-    'card.ticketsPendingSimcard': 'Tickets Pending SimCard',
-    'card.ticketsL0JiraBot': 'Tickets L0 Jira Bot',
-    'card.allL1Open': 'All L1 Open',
-    'card.simcardControl': 'Controle de SIMCARD',
-    
-    // Mini Stats
-    'ministat.resolutionRate': 'Taxa de Resolução',
-    'ministat.avgTime': 'Tempo Médio',
-    'ministat.today': 'Hoje',
-    
-    // Timer
-    'timer.freeTimer': 'Timer Livre',
-    'timer.session': 'Sessão:',
-    'timer.next': 'Próximo:',
-    'timer.breakMin': 'Pausa (5min)',
-    'timer.autoSaveWorklog': 'Salvar worklog automaticamente',
-    'timer.saveWorklogJira': 'Salvar Worklog no Jira',
-    'timer.stopBeforeSwitch': 'Pare o timer antes de trocar de modo',
-    'timer.pomodoroComplete': 'Pomodoro concluído! Hora da pausa.',
-    'timer.breakComplete': 'Pausa concluída! De volta ao trabalho.',
-    'timer.noTicketSelected': 'Nenhum ticket selecionado para o timer',
-    'timer.timeTooShort': 'Tempo muito curto para registrar (mínimo 1 minuto)',
-    'timer.savingWorklog': 'Salvando worklog...',
-    'timer.worklogSaved': 'Worklog salvo! Tempo:',
-    'timer.worklogError': 'Erro ao salvar worklog:',
-    
-    // Theme
-    'theme.mode': 'Modo de Tema:',
-    'theme.defaultName': 'Padrão',
-    'theme.defaultDesc': 'Gradiente Roxo',
-    'theme.darkName': 'Escuro',
-    'theme.lightName': 'Claro',
-    'theme.accentColor': 'Cor de Acento:',
-    'theme.customColor': 'Ou escolha uma cor personalizada:',
-    'theme.specialThemes': 'Temas Especiais:',
-    'theme.applyCustom': 'Aplicar Cor Personalizada',
-    'theme.accentUpdated': 'Cor de acento atualizada',
-    'theme.applied': 'aplicado',
-    
-    // Export
-    'export.today': 'Hoje',
-    'export.thisWeek': 'Esta Semana',
-    'export.thisMonth': 'Este Mês',
-    'export.statistics': 'Estatísticas',
-    'export.ticketList': 'Lista de Tickets',
-    'export.trendChart': 'Gráfico de Tendência',
-    'export.downloadBtn': '📥 Baixar Relatório',
-    'export.downloaded': 'Relatório baixado com sucesso',
-    'export.pdfDev': 'Função em desenvolvimento',
-    
-    // Floating Window
-    'floatingWindow.title': '🪟 Janela Flutuante (Faróis)',
-    'floatingWindow.enable': 'Ativar janela flutuante',
-    'floatingWindow.enabled': 'Janela flutuante ativada',
-    'floatingWindow.disabled': 'Janela flutuante desativada',
-    'floatingWindow.opacity': 'Opacidade',
-    'floatingWindow.size': 'Tamanho',
-    'floatingWindow.width': 'Largura',
-    'floatingWindow.height': 'Altura',
-    'floatingWindow.show': 'Mostrar',
-    'floatingWindow.critical': '🔴 Críticos',
-    'floatingWindow.warning': '🟡 Alerta',
-    'floatingWindow.normal': '🟢 Normal',
-    'floatingWindow.showTicketList': 'Mostrar lista de tickets',
-    
-    // User Monitor
-    'userMonitor.title': '👤 Monitorar Usuário',
-    'userMonitor.you': 'Você',
-    'userMonitor.addAnother': 'Adicionar Outro Usuário...',
-    'userMonitor.monitoring': 'Monitorando:',
-    'userMonitor.dataFrom': 'Dados de:',
-    
-    // Add User Modal
-    'addUser.enterEmail': 'Digite o e-mail do usuário que deseja monitorar:',
-    'addUser.placeholder': 'user@company.com',
-    'addUser.removed': 'removido permanentemente',
-    'addUser.monitoringInNewWindow': 'em nova janela',
-    'addUser.nowMonitoring': 'Agora monitorando',
-    'addUser.invalidEmail': 'Por favor, digite um e-mail válido',
-    'addUser.invalidEmailShort': 'E-mail inválido',
-    
-    // Templates
-    'templates.namePlaceholder': 'Ex: Aguardando Cliente',
-    'templates.textPlaceholder': 'Digite o texto do template...',
-    'templates.internalComment': 'Comentário interno (visível apenas para equipe)',
-    'templates.applied': 'aplicado!',
-    'templates.copied': 'copiado!',
-    'templates.nameTextRequired': 'Nome e texto são obrigatórios!',
-    'templates.saved': 'salvo!',
-    'templates.deleted': 'Template excluído!',
-    'templates.confirmDelete': 'Tem certeza que deseja excluir o template',
-    
-    // Canned Responses
-    'cannedResponses.title': 'Respostas Prontas',
-    'cannedResponses.namePlaceholder': 'Ex: Saudação inicial',
-    'cannedResponses.contentPlaceholder': 'Digite o conteúdo da resposta...',
-    'cannedResponses.inserted': 'Resposta inserida no comentário',
-    'cannedResponses.fillRequired': 'Preencha nome e conteúdo',
-    'cannedResponses.saved': 'Resposta salva com sucesso',
-    'cannedResponses.saveFailed': 'Falha ao salvar resposta',
-    'cannedResponses.deleted': 'Resposta removida',
-    'cannedResponses.deleteFailed': 'Falha ao deletar',
-    'cannedResponses.confirmDelete': 'Tem certeza que deseja deletar esta resposta?',
-    
-    // Search
-    'search.typeToSearch': 'Digite para buscar tickets...',
-    'search.noResults': 'Nenhum ticket encontrado',
-    'search.searchByName': 'Buscar por nome...',
-    
-    // Notifications
-    'notifications.noRecent': 'Nenhuma notificação recente',
-    'notifications.historyReset': 'Histórico resetado - todas as notificações serão mostradas novamente',
-    'notifications.cleared': 'Notificações limpas',
-    'notifications.testSuccess': 'Se você está vendo isso, as notificações estão funcionando! ✅',
-    'notifications.testSent': 'Notificação de teste enviada! Verifique o canto superior direito.',
-    'notifications.testError': 'Erro ao criar notificação:',
-    
-    // Desktop Notifications
-    'desktopNotif.ticketReassigned': 'Ticket Reatribuído',
-    'desktopNotif.youWereMentioned': 'Você foi mencionado no Jira',
-    'desktopNotif.mentionedInComment': 'Você foi mencionado em um comentário',
-    'desktopNotif.jiraUpdate': 'Atualização no Jira',
-    'desktopNotif.newTicketAssigned': 'Novo ticket atribuído a você',
-    'desktopNotif.ticketReassignedToYou': 'Ticket reatribuído para você',
-    'desktopNotif.slaExpired': 'SLA Estourado!',
-    'desktopNotif.slaExpiredBody': 'O SLA deste ticket expirou!',
-    'desktopNotif.slaWarning': 'SLA em Atenção',
-    'desktopNotif.slaWarningBody': 'Menos de 30 minutos para o SLA expirar!',
-    
-    // Ticket Preview
-    'preview.loading': 'Carregando ticket...',
-    'preview.error': 'Erro ao carregar ticket',
-    'preview.noTitle': 'Sem título',
-    'preview.unknownStatus': 'Status desconhecido',
-    'preview.unknownPriority': 'Prioridade desconhecida',
-    'preview.unassigned': 'Não atribuído',
-    'preview.notDefined': 'Não definido',
-    'preview.noComments': 'Nenhum comentário ainda',
-    'preview.addComment': 'Adicionar comentário... (use @ para mencionar)',
-    'preview.rating': 'Avaliação do cliente:',
-    'preview.stars': 'estrelas',
-    'preview.ratings': 'avaliação',
-    'preview.ratingsPlural': 'avaliações',
-    'preview.fullHistory': 'Histórico completo',
-    'preview.created': 'Criado',
-    'preview.updated': 'Atualizado',
-    
-    // Comments
-    'comment.empty': 'Comentário não pode estar vazio',
-    'comment.sending': 'Enviando comentário...',
-    'comment.sent': 'Comentário enviado!',
-    'comment.sendFailed': 'Falha ao enviar comentário',
-    'comment.updating': 'Atualizando comentário...',
-    'comment.updated': 'Comentário atualizado!',
-    'comment.updateFailed': 'Falha ao atualizar comentário',
-    'comment.deleting': 'Removendo comentário...',
-    'comment.deleted': 'Comentário deletado!',
-    'comment.deleteFailed': 'Falha ao deletar comentário',
-    'comment.confirmDelete': 'Tem certeza que deseja deletar este comentário?',
-    
-    // Attachments
-    'attachment.downloadSuccess': 'Anexo baixado com sucesso!',
-    'attachment.downloadError': 'Erro ao baixar anexo',
-    'attachment.uploading': 'Enviando anexo(s)...',
-    'attachment.uploadSuccess': 'Anexo(s) enviado(s) com sucesso!',
-    'attachment.uploadError': 'Erro ao enviar anexo(s)',
-    'attachment.sent': 'anexo(s) enviado(s)!',
-    
-    // Fields
-    'field.enterValue': 'Digite um valor',
-    'field.selectOption': 'Selecione uma opção',
-    'field.saving': 'Atualizando ticket...',
-    'field.saved': 'Campo atualizado!',
-    'field.saveFailed': 'Falha ao atualizar',
-    
-    // Status
-    'status.transitionsUnavailable': 'Transições de status não disponíveis',
-    'status.teamsLoadError': 'Não foi possível carregar times do Jira',
-    
-    // Connection
-    'connection.connected': 'Conectado',
-    'connection.disconnected': 'Desconectado',
-    'connection.loading': 'Carregando...',
-    'connection.unknown': 'Status desconhecido',
-    'connection.error': 'Erro de Conexão',
-    'connection.noConnection': 'Não foi possível conectar ao Jira. Verifique sua conexão e credenciais.',
-    'connection.fetchError': 'Erro ao buscar dados',
-    
-    // Layout
-    'layout.horizontal': 'Modo Horizontal ativo',
-    'layout.superCompact': 'Modo Super Compacto ativo - Sempre visível',
-    'layout.normal': 'Modo Normal ativo',
-    'layout.backToNormal': 'Voltou ao modo normal',
-    'layout.cardsUpdated': 'Ordem atualizada',
-    
-    // Focus Mode
-    'focusMode.activated': 'Ativado',
-    'focusMode.deactivated': 'Desativado',
-    
-    // Density Mode
-    'density.default': 'Padrão',
-    'density.compact': 'Compacto',
-    'density.comfortable': 'Confortável',
-    'density.modeActivated': 'ativado',
-    
-    // Priority
-    'priority.critical': 'Crítico',
-    'priority.high': 'Alto',
-    'priority.medium': 'Médio',
-    'priority.low': 'Baixo',
-    
-    // SLA
-    'sla.ticketsInAlert': 'ticket(s) com SLA em alerta (até 30min ou atrasados) - Clique para ver detalhes',
-    'sla.alertTitle': 'Tickets com SLA em Alerta (vencendo em até 30 minutos)',
-    'sla.inAlert': 'SLA em alerta',
-    
-    // Old Tickets
-    'oldTickets.title': 'Tickets Antigos (sem atualização há 7+ dias)',
-    
-    // Empty States
-    'empty.nothingHere': 'Nada por aqui!',
-    'empty.noTicketsAssigned': 'Você está sem tickets atribuídos no momento.',
-    'empty.greatWork': 'Ótimo trabalho!',
-    'empty.noWaitingSupport': 'Nenhum ticket aguardando suporte.',
-    'empty.allResponded': 'Tudo respondido!',
-    'empty.noWaitingCustomer': 'Nenhum ticket aguardando cliente.',
-    'empty.congratulations': 'Parabéns!',
-    'empty.noPending': 'Nenhum ticket pendente.',
-    'empty.cleanArea': 'Área limpa!',
-    'empty.noInProgress': 'Nenhum ticket em progresso no momento.',
-    
-    // Evaluated
-    'evaluated.noTickets': 'Nenhum ticket avaliado encontrado',
-    'evaluated.hint': 'Os tickets aparecem aqui quando você recebe avaliação do cliente',
-    
-    // Mentions
-    'mentions.searchError': 'Erro ao buscar usuários',
-    'mentions.noUsers': 'Nenhum usuário encontrado',
-    
-    // Config
-    'config.saved': 'Configurações salvas com sucesso',
-    'config.saveError': 'Não foi possível salvar as configurações',
-    'config.queueId': 'ID da Fila',
-    'config.refreshInterval': 'Intervalo de Atualização (segundos)',
-    'config.oldTicketsDays': 'Dias sem atualização para alertar',
-    'config.alertSla': 'Alertar sobre SLA próximo (1 hora antes)',
-    'config.alertOldTickets': 'Alertar sobre tickets antigos',
-    'config.newTickets': '🎫 Novos tickets atribuídos',
-    'config.statusChanges': '🔄 Mudanças de status',
-    'config.reassignments': '👤 Reatribuições para você',
-    'config.mentions': '📢 Quando você for mencionado',
-    'config.soundNotifications': '🔊 Tocar som nas notificações',
-    
-    // Shortcuts Custom
-    'shortcutsCustom.title': '⌨️ Personalizar Atalhos',
-    'shortcutsCustom.quickSearch': 'Busca Rápida',
-    'shortcutsCustom.refresh': 'Atualizar',
-    'shortcutsCustom.edit': 'Editar',
-    'shortcutsCustom.restoreDefault': 'Restaurar Padrão',
-    'shortcutsCustom.restored': 'Restaurados para padrão',
-    
-    // Language
-    'language.title': '🌍 Escolher Idioma / Choose Language / Elegir Idioma',
-    'language.applied': 'aplicado',
-    
-    // Daily Activity
-    'daily.noReceived': 'Nenhum ticket recebido hoje',
-    'daily.noResolved': 'Nenhum ticket fechado hoje',
-    'daily.noComments': 'Nenhum comentário hoje',
-    
-    // Metrics
-    'metrics.updated': 'Métricas atualizadas com sucesso!',
-    'metrics.error': 'Erro ao carregar métricas:',
-    
-    // Ticket Resolved
-    'ticket.resolved': 'resolvido! Parabéns!',
-    
-    // General
-    'general.success': 'Sucesso!',
-    'general.error': 'Erro',
-    'general.warning': 'Atenção',
-    'general.info': 'Info',
-    'general.saved': 'Salvo',
-    'general.deleted': 'Deletado',
-    'general.inserted': 'Inserido',
-    'general.sending': 'Enviando',
-    'general.saving': 'Salvando',
-    'general.deleting': 'Deletando',
-    'general.removed': 'Removido',
-    'general.newWindow': 'Nova Janela',
-    'general.keyCopied': 'Key copiada!',
-    'general.all': 'Todos',
-    'general.expand': 'Expandir',
-    'general.minimize': 'Minimizar',
-    'general.restore': 'Restaurar',
-    'general.opacity': '🪟 Opacidade:'
+    'tour.success': '✅ Tutorial concluído! Explore à vontade.'
   },
   
   // ========================================
@@ -745,6 +414,7 @@ const i18n = {
     'docs.title': '📚 Documentation',
     'docs.l1': 'L1 Documentation',
     'docs.bpo': 'BPO Documentation',
+    'docs.bpoAeBrasil': 'BPO/AE Brazil Support Guide',
     
     // Daily Activity
     'daily.title': '📊 Today\'s Activity',
@@ -837,24 +507,6 @@ const i18n = {
     'settings.language': '🌍 Language',
     'settings.save': 'Save',
     'settings.cancel': 'Cancel',
-    'settings.placeholderUrl': 'https://your-company.atlassian.net',
-    'settings.placeholderEmail': 'your.email@company.com',
-    'settings.placeholderToken': 'Your Jira API token',
-    
-    // Updated ago (relative time)
-    'time.updatedSecondsAgo': 'Updated {time}s ago',
-    'time.updatedMinutesAgo': 'Updated {time} min ago',
-    'time.updatedHoursAgo': 'Updated {time}h ago',
-    'time.updated': 'Updated',
-    'time.lastUpdate': 'Last update',
-    'time.now': 'now',
-    'time.minutesAgo': '{time} minutes ago',
-    'time.hoursAgo': '{time} hours ago',
-    'time.daysAgo': '{time} days ago',
-    
-    // Badge modals
-    'badge.slaTitle': '⏰ Tickets with SLA Alert (expiring in 30 minutes)',
-    'badge.oldTitle': '📅 Old Tickets (no update for 7+ days)',
     
     // Footer
     'footer.loading': 'Loading...',
@@ -880,7 +532,7 @@ const i18n = {
     // Add User Modal
     'addUser.title': '➕ Add User to Monitor',
     'addUser.description': 'Enter the email of the user you want to monitor:',
-    'addUser.placeholder': 'user@company.com',
+    'addUser.placeholder': 'example@nubank.com.br',
     'addUser.cancel': 'Cancel',
     'addUser.add': 'Add',
     
@@ -898,356 +550,42 @@ const i18n = {
     'context.openExternal': '🌐 Open Link in External Browser',
     'context.inspect': '🔧 Inspect Element',
     
-    // Onboarding Tour
-    'tour.step1.title': '📊 Overview',
-    'tour.step1.description': 'Here you can see your ticket counters (Total, Support, Pending, etc). Click on the cards to expand and view the complete list of tickets.',
-    'tour.step2.title': '🔄 Refresh',
-    'tour.step2.description': 'Click here to force a manual sync with Jira. The app automatically updates at configurable intervals.',
-    'tour.step3.title': '🔔 Notifications',
-    'tour.step3.description': 'View recent alerts and change history for your tickets. You\'ll be notified about new tickets, status changes, and mentions.',
-    'tour.step4.title': '⚙️ Menu & Settings',
-    'tour.step4.description': 'Access Pro Mode, custom Themes, connection settings, and much more. Use Cmd+, to quickly open settings.',
-    'tour.step5.title': '🎉 Ready to go!',
-    'tour.step5.description': 'You now know the basics of Jira Monitor. Use Cmd+K for quick ticket search and Cmd+P to enable Pro Mode. Good luck!',
+    // Interactive Onboarding Tour (15 steps)
+    'tour.step1.title': '👋 Welcome to Jira Monitor!',
+    'tour.step1.description': 'This is an INTERACTIVE tour! You\'ll experience features hands-on. Get ready for a complete experience! 🚀',
+    'tour.step2.title': '📊 Tickets Overview',
+    'tour.step2.description': 'Here you see real-time counters: Total, Support, Pending, and more. Click cards to expand and view the full list with SLA colors (🟢 green, 🟡 yellow, 🔴 red).',
+    'tour.step3.title': '🔔 Notifications Enabled!',
+    'tour.step3.description': 'You just allowed notifications! 🎉 You\'ll now receive alerts when: tickets change status, SLA becomes critical, or you\'re mentioned.',
+    'tour.step4.title': '📐 Layouts: 3 Modes Available',
+    'tour.step4.description': 'Jira Monitor has 3 layouts: Normal (current), Horizontal, and Super Compact (~80px height!). Let\'s try them all now!',
+    'tour.step5.title': '🎯 ACTION: Open the Menu!',
+    'tour.step5.description': 'Click the Menu button (☰) here to see options. Then click "Next".',
+    'tour.step6.title': '🎯 ACTION: Click "Toggle Layout"',
+    'tour.step6.description': 'Click "Toggle Layout" (or press Cmd+L) to switch to Horizontal Layout. The tour advances automatically when you do it!',
+    'tour.step7.title': '🎯 ACTION: Press Cmd+L Again',
+    'tour.step7.description': 'Press Cmd+L to see Super Compact Layout - perfect for secondary monitors! Only ~80px height. The tour advances automatically!',
+    'tour.step8.title': '🎯 ACTION: Back to Normal',
+    'tour.step8.description': 'Press Cmd+L once more to return to Normal Layout. The tour advances automatically when you do it! 🎉',
+    'tour.step9.title': '👨‍💻 Pro Mode: Advanced Features',
+    'tour.step9.description': 'Pro Mode enables advanced features: edit fields, add comments, upload attachments, mention people (@), and more!',
+    'tour.step10.title': '🎯 ACTION: Activate Pro Mode!',
+    'tour.step10.description': 'Click "Pro Mode" (or press Cmd+P) to activate. Watch the indicator appear at the top! The tour advances automatically when you activate it.',
+    'tour.step11.title': '🎨 Themes: Customize Everything',
+    'tour.step11.description': 'Click "Customize Theme" to see options: Dark/Light mode, presets (Cyberpunk, Nord, Dracula), and custom colors. Try it later!',
+    'tour.step12.title': '🔄 Manual Refresh',
+    'tour.step12.description': 'Click here to sync with Jira immediately. The app auto-updates every 60 seconds (configurable).',
+    'tour.step13.title': '🔍 Quick Search: Cmd+K',
+    'tour.step13.description': 'Press Cmd+K anytime to search tickets by ID, title, or description. It\'s instant!',
+    'tour.step14.title': '⌨️ Keyboard Shortcuts',
+    'tour.step14.description': 'Main shortcuts:\n• Cmd+K: Quick search\n• Cmd+L: Toggle layouts\n• Cmd+P: Pro Mode\n• Cmd+R: Refresh data\n• Cmd+,: Settings\n• Cmd+T: Timer/Pomodoro',
+    'tour.step15.title': '🎉 Tour Complete!',
+    'tour.step15.description': 'Congratulations! You\'ve experienced the main features. Jira data will load now. Explore freely and good luck! 🚀',
     'tour.buttons.next': 'Next',
     'tour.buttons.previous': 'Previous',
-    'tour.buttons.done': 'Done',
+    'tour.buttons.done': 'Let\'s Go!',
     'tour.buttons.skip': 'Skip',
-    'tour.success': '✅ Tutorial completed! Feel free to explore.',
-    
-    // Tooltips / Titles
-    'tooltip.totalTickets': 'Total Tickets',
-    'tooltip.activateAdvanced': 'Activate advanced features',
-    'tooltip.refreshManual': 'Refresh data manually (Cmd+R)',
-    'tooltip.openSettings': 'Open settings (Cmd+,)',
-    'tooltip.openOkta': 'Open Nubank OKTA',
-    'tooltip.openJamf': 'Open JAMF Cloud',
-    'tooltip.openJiraPortal': 'Open Jira Portal',
-    'tooltip.openGoogleAdmin': 'Open Google Admin Console',
-    'tooltip.quickSearch': 'Quick ticket search (Cmd+K)',
-    'tooltip.viewShortcuts': 'View all keyboard shortcuts',
-    'tooltip.templates': 'Quick response templates (Cmd+Shift+T)',
-    'tooltip.openTimer': 'Open Timer/Pomodoro (Cmd+T)',
-    'tooltip.customizeTheme': 'Customize theme',
-    'tooltip.toggleLayout': 'Toggle Layout (Cmd+L)',
-    'tooltip.adjustOpacity': 'Adjust window transparency',
-    'tooltip.exportReport': 'Export report',
-    'tooltip.connectionStatus': 'Connection status',
-    'tooltip.resetNotifications': 'Reset cleared notifications history',
-    'tooltip.zoomOut': 'Zoom Out (Cmd+-)',
-    'tooltip.zoomIn': 'Zoom In (Cmd++)',
-    'tooltip.densityMode': 'Density Mode',
-    'tooltip.monitoredUser': 'Monitored User',
-    'tooltip.backToNormal': 'Back to normal mode (ESC or Cmd+L)',
-    'tooltip.copyKey': 'Copy key',
-    'tooltip.openInJira': 'Open in Jira',
-    'tooltip.removeFromHistory': 'Remove from history',
-    'tooltip.openInNewWindow': 'Open in new window',
-    'tooltip.removeNotification': 'Remove notification',
-    'tooltip.clickToEdit': 'Click to edit',
-    
-    // Stat Cards
-    'card.totalTicketsIT': 'Total Tickets - IT',
-    'card.waitingSupport': 'Waiting for Support - IT',
-    'card.waitingCustomer': 'Waiting for Customer - IT',
-    'card.ticketsPending': 'Tickets Pending - IT',
-    'card.ticketsInProgress': 'Tickets In Progress - IT',
-    'card.ticketsPendingSimcard': 'Tickets Pending SimCard',
-    'card.ticketsL0JiraBot': 'Tickets L0 Jira Bot',
-    'card.allL1Open': 'All L1 Open',
-    'card.simcardControl': 'SIMCARD Control',
-    
-    // Mini Stats
-    'ministat.resolutionRate': 'Resolution Rate',
-    'ministat.avgTime': 'Average Time',
-    'ministat.today': 'Today',
-    
-    // Timer
-    'timer.freeTimer': 'Free Timer',
-    'timer.session': 'Session:',
-    'timer.next': 'Next:',
-    'timer.breakMin': 'Break (5min)',
-    'timer.autoSaveWorklog': 'Save worklog automatically',
-    'timer.saveWorklogJira': 'Save Worklog to Jira',
-    'timer.stopBeforeSwitch': 'Stop the timer before switching modes',
-    'timer.pomodoroComplete': 'Pomodoro complete! Time for a break.',
-    'timer.breakComplete': 'Break complete! Back to work.',
-    'timer.noTicketSelected': 'No ticket selected for timer',
-    'timer.timeTooShort': 'Time too short to log (minimum 1 minute)',
-    'timer.savingWorklog': 'Saving worklog...',
-    'timer.worklogSaved': 'Worklog saved! Time:',
-    'timer.worklogError': 'Error saving worklog:',
-    
-    // Theme
-    'theme.mode': 'Theme Mode:',
-    'theme.defaultName': 'Default',
-    'theme.defaultDesc': 'Purple Gradient',
-    'theme.darkName': 'Dark',
-    'theme.lightName': 'Light',
-    'theme.accentColor': 'Accent Color:',
-    'theme.customColor': 'Or choose a custom color:',
-    'theme.specialThemes': 'Special Themes:',
-    'theme.applyCustom': 'Apply Custom Color',
-    'theme.accentUpdated': 'Accent color updated',
-    'theme.applied': 'applied',
-    
-    // Export
-    'export.today': 'Today',
-    'export.thisWeek': 'This Week',
-    'export.thisMonth': 'This Month',
-    'export.statistics': 'Statistics',
-    'export.ticketList': 'Ticket List',
-    'export.trendChart': 'Trend Chart',
-    'export.downloadBtn': '📥 Download Report',
-    'export.downloaded': 'Report downloaded successfully',
-    'export.pdfDev': 'Feature in development',
-    
-    // Floating Window
-    'floatingWindow.title': '🪟 Floating Window (Status Lights)',
-    'floatingWindow.enable': 'Enable floating window',
-    'floatingWindow.enabled': 'Floating window enabled',
-    'floatingWindow.disabled': 'Floating window disabled',
-    'floatingWindow.opacity': 'Opacity',
-    'floatingWindow.size': 'Size',
-    'floatingWindow.width': 'Width',
-    'floatingWindow.height': 'Height',
-    'floatingWindow.show': 'Show',
-    'floatingWindow.critical': '🔴 Critical',
-    'floatingWindow.warning': '🟡 Warning',
-    'floatingWindow.normal': '🟢 Normal',
-    'floatingWindow.showTicketList': 'Show ticket list',
-    
-    // User Monitor
-    'userMonitor.title': '👤 Monitor User',
-    'userMonitor.you': 'You',
-    'userMonitor.addAnother': 'Add Another User...',
-    'userMonitor.monitoring': 'Monitoring:',
-    'userMonitor.dataFrom': 'Data from:',
-    
-    // Add User Modal
-    'addUser.enterEmail': 'Enter the email of the user you want to monitor:',
-    'addUser.placeholder': 'user@company.com',
-    'addUser.removed': 'permanently removed',
-    'addUser.monitoringInNewWindow': 'in new window',
-    'addUser.nowMonitoring': 'Now monitoring',
-    'addUser.invalidEmail': 'Please enter a valid email',
-    'addUser.invalidEmailShort': 'Invalid email',
-    
-    // Templates
-    'templates.namePlaceholder': 'E.g.: Awaiting Customer',
-    'templates.textPlaceholder': 'Enter template text...',
-    'templates.internalComment': 'Internal comment (visible to team only)',
-    'templates.applied': 'applied!',
-    'templates.copied': 'copied!',
-    'templates.nameTextRequired': 'Name and text are required!',
-    'templates.saved': 'saved!',
-    'templates.deleted': 'Template deleted!',
-    'templates.confirmDelete': 'Are you sure you want to delete the template',
-    
-    // Canned Responses
-    'cannedResponses.title': 'Canned Responses',
-    'cannedResponses.namePlaceholder': 'E.g.: Initial Greeting',
-    'cannedResponses.contentPlaceholder': 'Enter the response content...',
-    'cannedResponses.inserted': 'Response inserted in comment',
-    'cannedResponses.fillRequired': 'Fill in name and content',
-    'cannedResponses.saved': 'Response saved successfully',
-    'cannedResponses.saveFailed': 'Failed to save response',
-    'cannedResponses.deleted': 'Response removed',
-    'cannedResponses.deleteFailed': 'Failed to delete',
-    'cannedResponses.confirmDelete': 'Are you sure you want to delete this response?',
-    
-    // Search
-    'search.typeToSearch': 'Type to search tickets...',
-    'search.noResults': 'No tickets found',
-    'search.searchByName': 'Search by name...',
-    
-    // Notifications
-    'notifications.noRecent': 'No recent notifications',
-    'notifications.historyReset': 'History reset - all notifications will be shown again',
-    'notifications.cleared': 'Notifications cleared',
-    'notifications.testSuccess': 'If you see this, notifications are working! ✅',
-    'notifications.testSent': 'Test notification sent! Check the upper right corner.',
-    'notifications.testError': 'Error creating notification:',
-    
-    // Desktop Notifications
-    'desktopNotif.ticketReassigned': 'Ticket Reassigned',
-    'desktopNotif.youWereMentioned': 'You were mentioned in Jira',
-    'desktopNotif.mentionedInComment': 'You were mentioned in a comment',
-    'desktopNotif.jiraUpdate': 'Jira Update',
-    'desktopNotif.newTicketAssigned': 'New ticket assigned to you',
-    'desktopNotif.ticketReassignedToYou': 'Ticket reassigned to you',
-    'desktopNotif.slaExpired': 'SLA Expired!',
-    'desktopNotif.slaExpiredBody': 'This ticket\'s SLA has expired!',
-    'desktopNotif.slaWarning': 'SLA Warning',
-    'desktopNotif.slaWarningBody': 'Less than 30 minutes until SLA expires!',
-    
-    // Ticket Preview
-    'preview.loading': 'Loading ticket...',
-    'preview.error': 'Error loading ticket',
-    'preview.noTitle': 'No title',
-    'preview.unknownStatus': 'Unknown status',
-    'preview.unknownPriority': 'Unknown priority',
-    'preview.unassigned': 'Unassigned',
-    'preview.notDefined': 'Not defined',
-    'preview.noComments': 'No comments yet',
-    'preview.addComment': 'Add comment... (use @ to mention)',
-    'preview.rating': 'Customer rating:',
-    'preview.stars': 'stars',
-    'preview.ratings': 'rating',
-    'preview.ratingsPlural': 'ratings',
-    'preview.fullHistory': 'Full history',
-    'preview.created': 'Created',
-    'preview.updated': 'Updated',
-    
-    // Comments
-    'comment.empty': 'Comment cannot be empty',
-    'comment.sending': 'Sending comment...',
-    'comment.sent': 'Comment sent!',
-    'comment.sendFailed': 'Failed to send comment',
-    'comment.updating': 'Updating comment...',
-    'comment.updated': 'Comment updated!',
-    'comment.updateFailed': 'Failed to update comment',
-    'comment.deleting': 'Removing comment...',
-    'comment.deleted': 'Comment deleted!',
-    'comment.deleteFailed': 'Failed to delete comment',
-    'comment.confirmDelete': 'Are you sure you want to delete this comment?',
-    
-    // Attachments
-    'attachment.downloadSuccess': 'Attachment downloaded successfully!',
-    'attachment.downloadError': 'Error downloading attachment',
-    'attachment.uploading': 'Uploading attachment(s)...',
-    'attachment.uploadSuccess': 'Attachment(s) uploaded successfully!',
-    'attachment.uploadError': 'Error uploading attachment(s)',
-    'attachment.sent': 'attachment(s) uploaded!',
-    
-    // Fields
-    'field.enterValue': 'Enter a value',
-    'field.selectOption': 'Select an option',
-    'field.saving': 'Updating ticket...',
-    'field.saved': 'Field updated!',
-    'field.saveFailed': 'Failed to update',
-    
-    // Status
-    'status.transitionsUnavailable': 'Status transitions unavailable',
-    'status.teamsLoadError': 'Could not load Jira teams',
-    
-    // Connection
-    'connection.connected': 'Connected',
-    'connection.disconnected': 'Disconnected',
-    'connection.loading': 'Loading...',
-    'connection.unknown': 'Unknown status',
-    'connection.error': 'Connection Error',
-    'connection.noConnection': 'Could not connect to Jira. Check your connection and credentials.',
-    'connection.fetchError': 'Error fetching data',
-    
-    // Layout
-    'layout.horizontal': 'Horizontal Mode active',
-    'layout.superCompact': 'Super Compact Mode active - Always visible',
-    'layout.normal': 'Normal Mode active',
-    'layout.backToNormal': 'Back to normal mode',
-    'layout.cardsUpdated': 'Order updated',
-    
-    // Focus Mode
-    'focusMode.activated': 'Activated',
-    'focusMode.deactivated': 'Deactivated',
-    
-    // Density Mode
-    'density.default': 'Default',
-    'density.compact': 'Compact',
-    'density.comfortable': 'Comfortable',
-    'density.modeActivated': 'activated',
-    
-    // Priority
-    'priority.critical': 'Critical',
-    'priority.high': 'High',
-    'priority.medium': 'Medium',
-    'priority.low': 'Low',
-    
-    // SLA
-    'sla.ticketsInAlert': 'ticket(s) with SLA alert (under 30min or overdue) - Click for details',
-    'sla.alertTitle': 'Tickets with SLA Alert (expiring in under 30 minutes)',
-    'sla.inAlert': 'SLA alert',
-    
-    // Old Tickets
-    'oldTickets.title': 'Old Tickets (no update for 7+ days)',
-    
-    // Empty States
-    'empty.nothingHere': 'Nothing here!',
-    'empty.noTicketsAssigned': 'You have no tickets assigned at the moment.',
-    'empty.greatWork': 'Great work!',
-    'empty.noWaitingSupport': 'No tickets waiting for support.',
-    'empty.allResponded': 'All responded!',
-    'empty.noWaitingCustomer': 'No tickets waiting for customer.',
-    'empty.congratulations': 'Congratulations!',
-    'empty.noPending': 'No pending tickets.',
-    'empty.cleanArea': 'Clean area!',
-    'empty.noInProgress': 'No tickets in progress at the moment.',
-    
-    // Evaluated
-    'evaluated.noTickets': 'No evaluated tickets found',
-    'evaluated.hint': 'Tickets appear here when you receive customer feedback',
-    
-    // Mentions
-    'mentions.searchError': 'Error searching users',
-    'mentions.noUsers': 'No users found',
-    
-    // Config
-    'config.saved': 'Settings saved successfully',
-    'config.saveError': 'Could not save settings',
-    'config.queueId': 'Queue ID',
-    'config.refreshInterval': 'Refresh Interval (seconds)',
-    'config.oldTicketsDays': 'Days without update to alert',
-    'config.alertSla': 'Alert about upcoming SLA (1 hour before)',
-    'config.alertOldTickets': 'Alert about old tickets',
-    'config.newTickets': '🎫 New assigned tickets',
-    'config.statusChanges': '🔄 Status changes',
-    'config.reassignments': '👤 Reassignments to you',
-    'config.mentions': '📢 When you are mentioned',
-    'config.soundNotifications': '🔊 Play sound on notifications',
-    
-    // Shortcuts Custom
-    'shortcutsCustom.title': '⌨️ Customize Shortcuts',
-    'shortcutsCustom.quickSearch': 'Quick Search',
-    'shortcutsCustom.refresh': 'Refresh',
-    'shortcutsCustom.edit': 'Edit',
-    'shortcutsCustom.restoreDefault': 'Restore Default',
-    'shortcutsCustom.restored': 'Restored to default',
-    
-    // Language
-    'language.title': '🌍 Choose Language / Escolher Idioma / Elegir Idioma',
-    'language.applied': 'applied',
-    
-    // Daily Activity
-    'daily.noReceived': 'No tickets received today',
-    'daily.noResolved': 'No tickets closed today',
-    'daily.noComments': 'No comments today',
-    
-    // Metrics
-    'metrics.updated': 'Metrics updated successfully!',
-    'metrics.error': 'Error loading metrics:',
-    
-    // Ticket Resolved
-    'ticket.resolved': 'resolved! Congratulations!',
-    
-    // General
-    'general.success': 'Success!',
-    'general.error': 'Error',
-    'general.warning': 'Warning',
-    'general.info': 'Info',
-    'general.saved': 'Saved',
-    'general.deleted': 'Deleted',
-    'general.inserted': 'Inserted',
-    'general.sending': 'Sending',
-    'general.saving': 'Saving',
-    'general.deleting': 'Deleting',
-    'general.removed': 'Removed',
-    'general.newWindow': 'New Window',
-    'general.keyCopied': 'Key copied!',
-    'general.all': 'All',
-    'general.expand': 'Expand',
-    'general.minimize': 'Minimize',
-    'general.restore': 'Restore',
-    'general.opacity': '🪟 Opacity:'
+    'tour.success': '✅ Tutorial completed! Feel free to explore.'
   },
   
   // ========================================
@@ -1364,6 +702,7 @@ const i18n = {
     'docs.title': '📚 Documentación',
     'docs.l1': 'Documentación L1',
     'docs.bpo': 'Documentación BPO',
+    'docs.bpoAeBrasil': 'Guía de Soporte BPO/AE Brasil',
     
     // Daily Activity
     'daily.title': '📊 Actividad de Hoy',
@@ -1456,24 +795,6 @@ const i18n = {
     'settings.language': '🌍 Idioma',
     'settings.save': 'Guardar',
     'settings.cancel': 'Cancelar',
-    'settings.placeholderUrl': 'https://tu-empresa.atlassian.net',
-    'settings.placeholderEmail': 'tu.email@empresa.com',
-    'settings.placeholderToken': 'Tu API token de Jira',
-    
-    // Updated ago (tiempo relativo)
-    'time.updatedSecondsAgo': 'Actualizado hace {time}s',
-    'time.updatedMinutesAgo': 'Actualizado hace {time} min',
-    'time.updatedHoursAgo': 'Actualizado hace {time}h',
-    'time.updated': 'Actualizado',
-    'time.lastUpdate': 'Última actualización',
-    'time.now': 'ahora',
-    'time.minutesAgo': 'hace {time} minutos',
-    'time.hoursAgo': 'hace {time} horas',
-    'time.daysAgo': 'hace {time} días',
-    
-    // Badge modals
-    'badge.slaTitle': '⏰ Tickets con SLA en Alerta (vencen en 30 minutos)',
-    'badge.oldTitle': '📅 Tickets Antiguos (sin actualización hace 7+ días)',
     
     // Footer
     'footer.loading': 'Cargando...',
@@ -1499,7 +820,7 @@ const i18n = {
     // Add User Modal
     'addUser.title': '➕ Agregar Usuario para Monitorear',
     'addUser.description': 'Ingresa el correo electrónico del usuario que deseas monitorear:',
-    'addUser.placeholder': 'user@company.com',
+    'addUser.placeholder': 'ejemplo@nubank.com.br',
     'addUser.cancel': 'Cancelar',
     'addUser.add': 'Agregar',
     
@@ -1517,356 +838,42 @@ const i18n = {
     'context.openExternal': '🌐 Abrir Enlace en Navegador Externo',
     'context.inspect': '🔧 Inspeccionar Elemento',
     
-    // Onboarding Tour
-    'tour.step1.title': '📊 Vista General',
-    'tour.step1.description': 'Aquí puedes ver tus contadores de tickets (Total, Soporte, Pendientes, etc). Haz clic en las tarjetas para expandir y ver la lista completa de tickets.',
-    'tour.step2.title': '🔄 Actualizar',
-    'tour.step2.description': 'Haz clic aquí para forzar una sincronización manual con Jira. La aplicación se actualiza automáticamente en intervalos configurables.',
-    'tour.step3.title': '🔔 Notificaciones',
-    'tour.step3.description': 'Ve alertas recientes e historial de cambios en tus tickets. Serás notificado sobre nuevos tickets, cambios de estado y menciones.',
-    'tour.step4.title': '⚙️ Menú y Configuración',
-    'tour.step4.description': 'Accede al Modo Pro, Temas personalizados, Ajustes de conexión y mucho más. Usa Cmd+, para abrir rápidamente la configuración.',
-    'tour.step5.title': '🎉 ¡Listo para empezar!',
-    'tour.step5.description': 'Ya conoces lo básico de Jira Monitor. Usa Cmd+K para búsqueda rápida de tickets y Cmd+P para activar el Modo Pro. ¡Buena suerte!',
+    // Tour Interactivo de Bienvenida (15 pasos)
+    'tour.step1.title': '👋 ¡Bienvenido a Jira Monitor!',
+    'tour.step1.description': '¡Este es un tour INTERACTIVO! Experimentarás las funcionalidades en la práctica. ¡Prepárate para una experiencia completa! 🚀',
+    'tour.step2.title': '📊 Vista General de Tickets',
+    'tour.step2.description': 'Aquí ves tus contadores en tiempo real: Total, Soporte, Pendientes y más. Haz clic en las tarjetas para expandir y ver la lista completa con colores de SLA (🟢 verde, 🟡 amarillo, 🔴 rojo).',
+    'tour.step3.title': '🔔 ¡Notificaciones Activadas!',
+    'tour.step3.description': '¡Acabas de permitir notificaciones! 🎉 Ahora recibirás alertas cuando: los tickets cambien de estado, el SLA sea crítico o te mencionen.',
+    'tour.step4.title': '📐 Layouts: 3 Modos Disponibles',
+    'tour.step4.description': 'Jira Monitor tiene 3 layouts: Normal (actual), Horizontal y Super Compacto (¡~80px de altura!). ¡Vamos a probarlos todos ahora!',
+    'tour.step5.title': '🎯 ACCIÓN: ¡Abre el Menú!',
+    'tour.step5.description': 'Haz clic en el botón de Menú (☰) aquí para ver las opciones. Luego haz clic en "Siguiente".',
+    'tour.step6.title': '🎯 ACCIÓN: Haz clic en "Alternar Layout"',
+    'tour.step6.description': 'Haz clic en "Alternar Layout" (o presiona Cmd+L) para cambiar al Layout Horizontal. ¡El tour avanza automáticamente cuando lo hagas!',
+    'tour.step7.title': '🎯 ACCIÓN: Presiona Cmd+L de Nuevo',
+    'tour.step7.description': 'Presiona Cmd+L para ver el Layout Super Compacto - ¡perfecto para monitores secundarios! Solo ~80px de altura. ¡El tour avanza automáticamente!',
+    'tour.step8.title': '🎯 ACCIÓN: Vuelve al Normal',
+    'tour.step8.description': 'Presiona Cmd+L una vez más para volver al Layout Normal. ¡El tour avanza automáticamente cuando lo hagas! 🎉',
+    'tour.step9.title': '👨‍💻 Modo Pro: Funciones Avanzadas',
+    'tour.step9.description': 'El Modo Pro activa funciones avanzadas: editar campos, agregar comentarios, subir archivos, mencionar personas (@) y mucho más!',
+    'tour.step10.title': '🎯 ACCIÓN: ¡Activa el Modo Pro!',
+    'tour.step10.description': 'Haz clic en "Modo Pro" (o presiona Cmd+P) para activar. ¡Verás el indicador aparecer arriba! El tour avanza automáticamente cuando lo actives.',
+    'tour.step11.title': '🎨 Temas: Personaliza Todo',
+    'tour.step11.description': 'Haz clic en "Personalizar Tema" para ver opciones: Dark/Light mode, presets (Cyberpunk, Nord, Dracula) y colores personalizables. ¡Pruébalo después!',
+    'tour.step12.title': '🔄 Actualización Manual',
+    'tour.step12.description': 'Haz clic aquí para sincronizar con Jira inmediatamente. La app se actualiza automáticamente cada 60 segundos (configurable).',
+    'tour.step13.title': '🔍 Búsqueda Rápida: Cmd+K',
+    'tour.step13.description': 'Presiona Cmd+K en cualquier momento para buscar tickets por ID, título o descripción. ¡Es instantáneo!',
+    'tour.step14.title': '⌨️ Atajos de Teclado',
+    'tour.step14.description': 'Atajos principales:\n• Cmd+K: Búsqueda rápida\n• Cmd+L: Alternar layouts\n• Cmd+P: Modo Pro\n• Cmd+R: Actualizar datos\n• Cmd+,: Configuración\n• Cmd+T: Timer/Pomodoro',
+    'tour.step15.title': '🎉 ¡Tour Completo!',
+    'tour.step15.description': '¡Felicitaciones! Experimentaste las funciones principales. Los datos de Jira se cargarán ahora. ¡Explora libremente y buena suerte! 🚀',
     'tour.buttons.next': 'Siguiente',
     'tour.buttons.previous': 'Anterior',
-    'tour.buttons.done': 'Finalizar',
+    'tour.buttons.done': '¡Empezar!',
     'tour.buttons.skip': 'Omitir',
-    'tour.success': '✅ ¡Tutorial completado! Explora libremente.',
-    
-    // Tooltips / Titles
-    'tooltip.totalTickets': 'Total de Tickets',
-    'tooltip.activateAdvanced': 'Activar funciones avanzadas',
-    'tooltip.refreshManual': 'Actualizar datos manualmente (Cmd+R)',
-    'tooltip.openSettings': 'Abrir configuración (Cmd+,)',
-    'tooltip.openOkta': 'Abrir Nubank OKTA',
-    'tooltip.openJamf': 'Abrir JAMF Cloud',
-    'tooltip.openJiraPortal': 'Abrir Jira Portal',
-    'tooltip.openGoogleAdmin': 'Abrir Google Admin Console',
-    'tooltip.quickSearch': 'Búsqueda rápida de tickets (Cmd+K)',
-    'tooltip.viewShortcuts': 'Ver todos los atajos de teclado',
-    'tooltip.templates': 'Plantillas de respuesta rápida (Cmd+Shift+T)',
-    'tooltip.openTimer': 'Abrir Timer/Pomodoro (Cmd+T)',
-    'tooltip.customizeTheme': 'Personalizar tema',
-    'tooltip.toggleLayout': 'Alternar Diseño (Cmd+L)',
-    'tooltip.adjustOpacity': 'Ajustar transparencia de la ventana',
-    'tooltip.exportReport': 'Exportar informe',
-    'tooltip.connectionStatus': 'Estado de conexión',
-    'tooltip.resetNotifications': 'Restablecer historial de notificaciones limpiadas',
-    'tooltip.zoomOut': 'Reducir Zoom (Cmd+-)',
-    'tooltip.zoomIn': 'Aumentar Zoom (Cmd++)',
-    'tooltip.densityMode': 'Modo de Densidad',
-    'tooltip.monitoredUser': 'Usuario Monitoreado',
-    'tooltip.backToNormal': 'Volver al modo normal (ESC o Cmd+L)',
-    'tooltip.copyKey': 'Copiar clave',
-    'tooltip.openInJira': 'Abrir en Jira',
-    'tooltip.removeFromHistory': 'Eliminar del historial',
-    'tooltip.openInNewWindow': 'Abrir en nueva ventana',
-    'tooltip.removeNotification': 'Eliminar notificación',
-    'tooltip.clickToEdit': 'Clic para editar',
-    
-    // Stat Cards
-    'card.totalTicketsIT': 'Total de Tickets - IT',
-    'card.waitingSupport': 'Esperando Soporte - IT',
-    'card.waitingCustomer': 'Esperando Cliente - IT',
-    'card.ticketsPending': 'Tickets Pendientes - IT',
-    'card.ticketsInProgress': 'Tickets En Progreso - IT',
-    'card.ticketsPendingSimcard': 'Tickets Pendientes SimCard',
-    'card.ticketsL0JiraBot': 'Tickets L0 Jira Bot',
-    'card.allL1Open': 'Todos L1 Abiertos',
-    'card.simcardControl': 'Control de SIMCARD',
-    
-    // Mini Stats
-    'ministat.resolutionRate': 'Tasa de Resolución',
-    'ministat.avgTime': 'Tiempo Promedio',
-    'ministat.today': 'Hoy',
-    
-    // Timer
-    'timer.freeTimer': 'Timer Libre',
-    'timer.session': 'Sesión:',
-    'timer.next': 'Siguiente:',
-    'timer.breakMin': 'Pausa (5min)',
-    'timer.autoSaveWorklog': 'Guardar worklog automáticamente',
-    'timer.saveWorklogJira': 'Guardar Worklog en Jira',
-    'timer.stopBeforeSwitch': 'Detén el timer antes de cambiar de modo',
-    'timer.pomodoroComplete': '¡Pomodoro completado! Hora del descanso.',
-    'timer.breakComplete': '¡Descanso completado! De vuelta al trabajo.',
-    'timer.noTicketSelected': 'Ningún ticket seleccionado para el timer',
-    'timer.timeTooShort': 'Tiempo muy corto para registrar (mínimo 1 minuto)',
-    'timer.savingWorklog': 'Guardando worklog...',
-    'timer.worklogSaved': '¡Worklog guardado! Tiempo:',
-    'timer.worklogError': 'Error al guardar worklog:',
-    
-    // Theme
-    'theme.mode': 'Modo de Tema:',
-    'theme.defaultName': 'Predeterminado',
-    'theme.defaultDesc': 'Degradado Púrpura',
-    'theme.darkName': 'Oscuro',
-    'theme.lightName': 'Claro',
-    'theme.accentColor': 'Color de Acento:',
-    'theme.customColor': 'O elige un color personalizado:',
-    'theme.specialThemes': 'Temas Especiales:',
-    'theme.applyCustom': 'Aplicar Color Personalizado',
-    'theme.accentUpdated': 'Color de acento actualizado',
-    'theme.applied': 'aplicado',
-    
-    // Export
-    'export.today': 'Hoy',
-    'export.thisWeek': 'Esta Semana',
-    'export.thisMonth': 'Este Mes',
-    'export.statistics': 'Estadísticas',
-    'export.ticketList': 'Lista de Tickets',
-    'export.trendChart': 'Gráfico de Tendencia',
-    'export.downloadBtn': '📥 Descargar Informe',
-    'export.downloaded': 'Informe descargado exitosamente',
-    'export.pdfDev': 'Función en desarrollo',
-    
-    // Floating Window
-    'floatingWindow.title': '🪟 Ventana Flotante (Semáforos)',
-    'floatingWindow.enable': 'Activar ventana flotante',
-    'floatingWindow.enabled': 'Ventana flotante activada',
-    'floatingWindow.disabled': 'Ventana flotante desactivada',
-    'floatingWindow.opacity': 'Opacidad',
-    'floatingWindow.size': 'Tamaño',
-    'floatingWindow.width': 'Ancho',
-    'floatingWindow.height': 'Alto',
-    'floatingWindow.show': 'Mostrar',
-    'floatingWindow.critical': '🔴 Críticos',
-    'floatingWindow.warning': '🟡 Alerta',
-    'floatingWindow.normal': '🟢 Normal',
-    'floatingWindow.showTicketList': 'Mostrar lista de tickets',
-    
-    // User Monitor
-    'userMonitor.title': '👤 Monitorear Usuario',
-    'userMonitor.you': 'Tú',
-    'userMonitor.addAnother': 'Agregar Otro Usuario...',
-    'userMonitor.monitoring': 'Monitoreando:',
-    'userMonitor.dataFrom': 'Datos de:',
-    
-    // Add User Modal
-    'addUser.enterEmail': 'Ingresa el correo del usuario que deseas monitorear:',
-    'addUser.placeholder': 'user@company.com',
-    'addUser.removed': 'eliminado permanentemente',
-    'addUser.monitoringInNewWindow': 'en nueva ventana',
-    'addUser.nowMonitoring': 'Ahora monitoreando',
-    'addUser.invalidEmail': 'Por favor, ingresa un correo válido',
-    'addUser.invalidEmailShort': 'Correo inválido',
-    
-    // Templates
-    'templates.namePlaceholder': 'Ej: Esperando Cliente',
-    'templates.textPlaceholder': 'Ingresa el texto de la plantilla...',
-    'templates.internalComment': 'Comentario interno (visible solo para el equipo)',
-    'templates.applied': '¡aplicada!',
-    'templates.copied': '¡copiada!',
-    'templates.nameTextRequired': '¡Nombre y texto son obligatorios!',
-    'templates.saved': '¡guardada!',
-    'templates.deleted': '¡Plantilla eliminada!',
-    'templates.confirmDelete': '¿Estás seguro de eliminar la plantilla',
-    
-    // Canned Responses
-    'cannedResponses.title': 'Respuestas Predefinidas',
-    'cannedResponses.namePlaceholder': 'Ej: Saludo inicial',
-    'cannedResponses.contentPlaceholder': 'Ingresa el contenido de la respuesta...',
-    'cannedResponses.inserted': 'Respuesta insertada en el comentario',
-    'cannedResponses.fillRequired': 'Completa nombre y contenido',
-    'cannedResponses.saved': 'Respuesta guardada exitosamente',
-    'cannedResponses.saveFailed': 'Error al guardar respuesta',
-    'cannedResponses.deleted': 'Respuesta eliminada',
-    'cannedResponses.deleteFailed': 'Error al eliminar',
-    'cannedResponses.confirmDelete': '¿Estás seguro de eliminar esta respuesta?',
-    
-    // Search
-    'search.typeToSearch': 'Escribe para buscar tickets...',
-    'search.noResults': 'No se encontraron tickets',
-    'search.searchByName': 'Buscar por nombre...',
-    
-    // Notifications
-    'notifications.noRecent': 'No hay notificaciones recientes',
-    'notifications.historyReset': 'Historial restablecido - todas las notificaciones se mostrarán de nuevo',
-    'notifications.cleared': 'Notificaciones limpiadas',
-    'notifications.testSuccess': '¡Si ves esto, las notificaciones funcionan! ✅',
-    'notifications.testSent': '¡Notificación de prueba enviada! Revisa la esquina superior derecha.',
-    'notifications.testError': 'Error al crear notificación:',
-    
-    // Desktop Notifications
-    'desktopNotif.ticketReassigned': 'Ticket Reasignado',
-    'desktopNotif.youWereMentioned': 'Te mencionaron en Jira',
-    'desktopNotif.mentionedInComment': 'Te mencionaron en un comentario',
-    'desktopNotif.jiraUpdate': 'Actualización de Jira',
-    'desktopNotif.newTicketAssigned': 'Nuevo ticket asignado a ti',
-    'desktopNotif.ticketReassignedToYou': 'Ticket reasignado a ti',
-    'desktopNotif.slaExpired': '¡SLA Expirado!',
-    'desktopNotif.slaExpiredBody': '¡El SLA de este ticket ha expirado!',
-    'desktopNotif.slaWarning': 'Alerta de SLA',
-    'desktopNotif.slaWarningBody': '¡Menos de 30 minutos para que expire el SLA!',
-    
-    // Ticket Preview
-    'preview.loading': 'Cargando ticket...',
-    'preview.error': 'Error al cargar ticket',
-    'preview.noTitle': 'Sin título',
-    'preview.unknownStatus': 'Estado desconocido',
-    'preview.unknownPriority': 'Prioridad desconocida',
-    'preview.unassigned': 'Sin asignar',
-    'preview.notDefined': 'No definido',
-    'preview.noComments': 'Sin comentarios aún',
-    'preview.addComment': 'Agregar comentario... (usa @ para mencionar)',
-    'preview.rating': 'Calificación del cliente:',
-    'preview.stars': 'estrellas',
-    'preview.ratings': 'calificación',
-    'preview.ratingsPlural': 'calificaciones',
-    'preview.fullHistory': 'Historial completo',
-    'preview.created': 'Creado',
-    'preview.updated': 'Actualizado',
-    
-    // Comments
-    'comment.empty': 'El comentario no puede estar vacío',
-    'comment.sending': 'Enviando comentario...',
-    'comment.sent': '¡Comentario enviado!',
-    'comment.sendFailed': 'Error al enviar comentario',
-    'comment.updating': 'Actualizando comentario...',
-    'comment.updated': '¡Comentario actualizado!',
-    'comment.updateFailed': 'Error al actualizar comentario',
-    'comment.deleting': 'Eliminando comentario...',
-    'comment.deleted': '¡Comentario eliminado!',
-    'comment.deleteFailed': 'Error al eliminar comentario',
-    'comment.confirmDelete': '¿Estás seguro de eliminar este comentario?',
-    
-    // Attachments
-    'attachment.downloadSuccess': '¡Archivo descargado exitosamente!',
-    'attachment.downloadError': 'Error al descargar archivo',
-    'attachment.uploading': 'Subiendo archivo(s)...',
-    'attachment.uploadSuccess': '¡Archivo(s) subido(s) exitosamente!',
-    'attachment.uploadError': 'Error al subir archivo(s)',
-    'attachment.sent': '¡archivo(s) subido(s)!',
-    
-    // Fields
-    'field.enterValue': 'Ingresa un valor',
-    'field.selectOption': 'Selecciona una opción',
-    'field.saving': 'Actualizando ticket...',
-    'field.saved': '¡Campo actualizado!',
-    'field.saveFailed': 'Error al actualizar',
-    
-    // Status
-    'status.transitionsUnavailable': 'Transiciones de estado no disponibles',
-    'status.teamsLoadError': 'No se pudieron cargar los equipos de Jira',
-    
-    // Connection
-    'connection.connected': 'Conectado',
-    'connection.disconnected': 'Desconectado',
-    'connection.loading': 'Cargando...',
-    'connection.unknown': 'Estado desconocido',
-    'connection.error': 'Error de Conexión',
-    'connection.noConnection': 'No se pudo conectar a Jira. Verifica tu conexión y credenciales.',
-    'connection.fetchError': 'Error al obtener datos',
-    
-    // Layout
-    'layout.horizontal': 'Modo Horizontal activo',
-    'layout.superCompact': 'Modo Super Compacto activo - Siempre visible',
-    'layout.normal': 'Modo Normal activo',
-    'layout.backToNormal': 'Volvió al modo normal',
-    'layout.cardsUpdated': 'Orden actualizado',
-    
-    // Focus Mode
-    'focusMode.activated': 'Activado',
-    'focusMode.deactivated': 'Desactivado',
-    
-    // Density Mode
-    'density.default': 'Predeterminado',
-    'density.compact': 'Compacto',
-    'density.comfortable': 'Cómodo',
-    'density.modeActivated': 'activado',
-    
-    // Priority
-    'priority.critical': 'Crítico',
-    'priority.high': 'Alto',
-    'priority.medium': 'Medio',
-    'priority.low': 'Bajo',
-    
-    // SLA
-    'sla.ticketsInAlert': 'ticket(s) con alerta de SLA (menos de 30min o vencidos) - Clic para ver detalles',
-    'sla.alertTitle': 'Tickets con Alerta de SLA (vencen en menos de 30 minutos)',
-    'sla.inAlert': 'Alerta de SLA',
-    
-    // Old Tickets
-    'oldTickets.title': 'Tickets Antiguos (sin actualización por 7+ días)',
-    
-    // Empty States
-    'empty.nothingHere': '¡Nada por aquí!',
-    'empty.noTicketsAssigned': 'No tienes tickets asignados en este momento.',
-    'empty.greatWork': '¡Buen trabajo!',
-    'empty.noWaitingSupport': 'Ningún ticket esperando soporte.',
-    'empty.allResponded': '¡Todo respondido!',
-    'empty.noWaitingCustomer': 'Ningún ticket esperando cliente.',
-    'empty.congratulations': '¡Felicitaciones!',
-    'empty.noPending': 'Ningún ticket pendiente.',
-    'empty.cleanArea': '¡Área limpia!',
-    'empty.noInProgress': 'Ningún ticket en progreso en este momento.',
-    
-    // Evaluated
-    'evaluated.noTickets': 'No se encontraron tickets evaluados',
-    'evaluated.hint': 'Los tickets aparecen aquí cuando recibes calificación del cliente',
-    
-    // Mentions
-    'mentions.searchError': 'Error al buscar usuarios',
-    'mentions.noUsers': 'No se encontraron usuarios',
-    
-    // Config
-    'config.saved': 'Configuración guardada exitosamente',
-    'config.saveError': 'No se pudo guardar la configuración',
-    'config.queueId': 'ID de Cola',
-    'config.refreshInterval': 'Intervalo de Actualización (segundos)',
-    'config.oldTicketsDays': 'Días sin actualización para alertar',
-    'config.alertSla': 'Alertar sobre SLA próximo (1 hora antes)',
-    'config.alertOldTickets': 'Alertar sobre tickets antiguos',
-    'config.newTickets': '🎫 Nuevos tickets asignados',
-    'config.statusChanges': '🔄 Cambios de estado',
-    'config.reassignments': '👤 Reasignaciones a ti',
-    'config.mentions': '📢 Cuando te mencionen',
-    'config.soundNotifications': '🔊 Reproducir sonido en notificaciones',
-    
-    // Shortcuts Custom
-    'shortcutsCustom.title': '⌨️ Personalizar Atajos',
-    'shortcutsCustom.quickSearch': 'Búsqueda Rápida',
-    'shortcutsCustom.refresh': 'Actualizar',
-    'shortcutsCustom.edit': 'Editar',
-    'shortcutsCustom.restoreDefault': 'Restaurar Predeterminado',
-    'shortcutsCustom.restored': 'Restaurados a predeterminado',
-    
-    // Language
-    'language.title': '🌍 Elegir Idioma / Choose Language / Escolher Idioma',
-    'language.applied': 'aplicado',
-    
-    // Daily Activity
-    'daily.noReceived': 'Ningún ticket recibido hoy',
-    'daily.noResolved': 'Ningún ticket cerrado hoy',
-    'daily.noComments': 'Ningún comentario hoy',
-    
-    // Metrics
-    'metrics.updated': '¡Métricas actualizadas exitosamente!',
-    'metrics.error': 'Error al cargar métricas:',
-    
-    // Ticket Resolved
-    'ticket.resolved': '¡resuelto! ¡Felicitaciones!',
-    
-    // General
-    'general.success': '¡Éxito!',
-    'general.error': 'Error',
-    'general.warning': 'Atención',
-    'general.info': 'Info',
-    'general.saved': 'Guardado',
-    'general.deleted': 'Eliminado',
-    'general.inserted': 'Insertado',
-    'general.sending': 'Enviando',
-    'general.saving': 'Guardando',
-    'general.deleting': 'Eliminando',
-    'general.removed': 'Eliminado',
-    'general.newWindow': 'Nueva Ventana',
-    'general.keyCopied': '¡Clave copiada!',
-    'general.all': 'Todos',
-    'general.expand': 'Expandir',
-    'general.minimize': 'Minimizar',
-    'general.restore': 'Restaurar',
-    'general.opacity': '🪟 Opacidad:'
+    'tour.success': '✅ ¡Tutorial completado! Explora libremente.'
   }
 };
 

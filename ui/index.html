@@ -12,6 +12,7 @@
   <!-- Driver.js - Onboarding Tour (local v1.3.6) -->
   <link rel="stylesheet" href="driver.css">
   <script src="driver.js"></script>
+  <script src="confetti.js"></script>
   <script src="i18n.js"></script>
 </head>
 <body>
@@ -60,154 +61,145 @@
       </div>
       
       <div class="header-right">
-        <!-- ═══════════ NAVEGAÇÃO ═══════════ -->
-        <button class="header-btn menu-btn" id="menu-btn" title="Menu (☰)">
+        <!-- Menu Hambúrguer -->
+        <button class="header-btn menu-btn" id="menu-btn" title="Menu" data-i18n="header.menu" data-i18n-title>
           <svg viewBox="0 0 24 24" width="18" height="18">
             <path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
           </svg>
         </button>
         
-        <button class="header-btn" id="toggle-density-btn" title="Dashboard / Apps">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M3 13h8v8H3v-8zm0-10h8v8H3V3zm10 0h8v8h-8V3zm0 10h8v8h-8v-8z"/>
-          </svg>
-        </button>
+        <!-- Dropdown do Menu -->
+        <div class="menu-dropdown" id="menu-dropdown" style="display: none;">
+          <!-- PRINCIPAIS -->
+          <div class="menu-item" id="menu-pro" title="Ativar recursos avançados">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 18c-4.41 0-8-3.59-8-8V9l8-4.5L20 9v3c0 4.41-3.59 8-8 8z"/>
+            </svg>
+            <span data-i18n="menu.proMode">Modo Pro</span>
+          </div>
+          <div class="menu-item" id="menu-refresh" title="Atualizar dados manualmente (Cmd+R)">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+            <span data-i18n="menu.refresh">Atualizar</span>
+          </div>
+          <div class="menu-item" id="menu-settings" title="Abrir configurações (Cmd+,)">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+            <span data-i18n="menu.settings">Configurações</span>
+          </div>
+          
+          <div class="menu-divider"></div>
+          
+          <!-- LINKS EXTERNOS -->
+          <div class="menu-item" id="menu-okta" title="Abrir Nubank OKTA">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+            </svg>
+            <span data-i18n="menu.okta">OKTA</span>
+          </div>
+          <div class="menu-item" id="menu-jamf" title="Abrir JAMF Cloud">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+            </svg>
+            <span data-i18n="menu.jamf">JAMF</span>
+          </div>
+          <div class="menu-item" id="menu-jira-portal" title="Abrir Jira Portal">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M11.53 2c0 2.4 1.97 4.35 4.35 4.35h1.78v1.7c0 2.4 1.97 4.35 4.35 4.35V8.35c0-3.51-2.84-6.35-6.35-6.35h-4.13zm-4.35 6.35c0 2.4 1.97 4.35 4.35 4.35h1.78v1.7c0 2.4 1.97 4.35 4.35 4.35v-4.35c0-3.51-2.84-6.35-6.35-6.35H7.18zm-4.35 6.35c0 2.4 1.97 4.35 4.35 4.35h1.78v1.7c0 2.4 1.97 4.35 4.35 4.35v-4.35c0-3.51-2.84-6.35-6.35-6.35H2.83z"/>
+            </svg>
+            <span>Jira Portal</span>
+          </div>
+          <div class="menu-item" id="menu-google-admin" title="Abrir Google Admin Console">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M19.43 12.98c.04-.32.07-.64.07-.98 0-.34-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98 0 .33.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+            </svg>
+            <span>Google Admin Console</span>
+          </div>
+          
+          <div class="menu-divider"></div>
+          
+          <!-- FERRAMENTAS -->
+          <div class="menu-item" id="menu-search" title="Busca rápida de tickets (Cmd+K)">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+            <span data-i18n="menu.search">Busca Rápida</span>
+          </div>
+          <div class="menu-item" id="menu-shortcuts" title="Ver todos os atalhos de teclado">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/>
+            </svg>
+            <span data-i18n="menu.shortcuts">Atalhos</span>
+          </div>
+          <div class="menu-item" id="menu-templates" title="Templates de resposta rápida (Cmd+Shift+T)">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+            </svg>
+            <span data-i18n="menu.templates">Templates</span>
+          </div>
+          <div class="menu-item" id="menu-timer" title="Abrir Timer/Pomodoro (Cmd+T)">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+            </svg>
+            <span data-i18n="menu.timer">Timer / Pomodoro</span>
+          </div>
+          
+          <div class="menu-divider"></div>
+          
+          <!-- PERSONALIZAÇÃO -->
+          <div class="menu-item" id="menu-themes" title="Personalizar tema">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+            </svg>
+            <span data-i18n="menu.themes">Temas</span>
+          </div>
+          <div class="menu-item" id="menu-toggle-layout" title="Alternar Layout (Cmd+L)">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>
+            </svg>
+            <span>Layout</span>
+          </div>
+          <div class="menu-item" id="menu-language" title="Idioma / Language / Idioma">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+            </svg>
+            <span data-i18n="menu.language">🌍 Idioma</span>
+          </div>
+          <div class="menu-item-slider" id="menu-opacity-container" title="Ajustar transparência da janela">
+            <div class="menu-item-slider-header">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M17.66 8L12 2.35 6.34 8C4.78 9.56 4 11.64 4 13.64s.78 4.11 2.34 5.67 3.61 2.35 5.66 2.35 4.1-.79 5.66-2.35S20 15.64 20 13.64 19.22 9.56 17.66 8zM6 14c.01-2 .62-3.27 1.76-4.4L12 5.27l4.24 4.38C17.38 10.77 17.99 12 18 14H6z"/>
+              </svg>
+              <span>🪟 Opacidade: <span id="opacity-value">100%</span></span>
+            </div>
+            <input type="range" id="opacity-slider" min="20" max="100" value="100" step="5" class="opacity-slider">
+          </div>
+          
+          <div class="menu-divider"></div>
+          
+          <!-- EXPORTAR -->
+          <div class="menu-item" id="menu-export" title="Exportar relatório">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+            </svg>
+            <span data-i18n="menu.export">Exportar</span>
+          </div>
+        </div>
         
-        <div class="header-separator"></div>
-        
-        <!-- ═══════════ FERRAMENTAS ═══════════ -->
-        <button class="header-btn" id="search-btn" title="Busca Rápida (Cmd+K)">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-          </svg>
-        </button>
-        
-        <button class="header-btn header-btn-subtle" id="docs-btn" title="Documentação">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-          </svg>
-        </button>
-        
-        <button class="header-btn header-btn-subtle zoom-control" id="zoom-btn" title="Zoom (clique para ajustar)">
-          <svg viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-          </svg>
-          <span class="zoom-label" id="zoom-label">100%</span>
-        </button>
-        
-        <div class="header-separator"></div>
-        
-        <!-- ═══════════ SISTEMA / CONTA ═══════════ -->
+        <!-- Indicador de Status de Conexão -->
         <div class="connection-status" id="connection-status" title="Status da conexão">
           <span class="status-dot" id="status-dot"></span>
         </div>
         
-        <button class="header-btn notifications-btn" id="notifications-btn" title="Notificações">
+        <!-- Botão de Notificações -->
+        <button class="header-btn notifications-btn" id="notifications-btn" title="Notificações" data-i18n="header.notifications" data-i18n-title>
           <svg viewBox="0 0 24 24" width="18" height="18">
             <path fill="currentColor" d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
           </svg>
           <span class="notification-badge" id="notification-badge" style="display: none;">0</span>
         </button>
-        
-        <button class="header-btn user-monitor-btn" id="user-monitor-btn" title="Usuário Monitorado">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-          </svg>
-          <span class="user-monitor-label" id="user-monitor-label">Você</span>
-          <svg viewBox="0 0 24 24" width="14" height="14" class="dropdown-arrow">
-            <path fill="currentColor" d="M7 10l5 5 5-5z"/>
-          </svg>
-        </button>
-        
-        <div class="header-separator"></div>
-        
-        <!-- ═══════════ CONTROLES JANELA ═══════════ -->
-        <button class="header-btn" id="minimize-btn" title="Minimizar (Esc)">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M19 13H5v-2h14v2z"/>
-          </svg>
-        </button>
-        
-        <button class="header-btn close-btn" id="close-btn" title="Fechar">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        </button>
-        
-        <!-- ═══════════ DROPDOWNS ═══════════ -->
-        <!-- Dropdown do Menu -->
-        <div class="menu-dropdown" id="menu-dropdown" style="display: none;">
-          <!-- ⭐ MODO PRO -->
-          <div class="menu-item" id="menu-pro" title="Ativar recursos avançados">
-            <span data-i18n="menu.proMode">⭐ Modo Pro</span>
-          </div>
-          
-          <!-- 🔗 INTEGRAÇÕES -->
-          <div class="menu-section-header">Integrações</div>
-          <div class="menu-item" id="menu-okta" title="Abrir OKTA">
-            <span data-i18n="menu.okta">🔐 OKTA</span>
-          </div>
-          <div class="menu-item" id="menu-jamf" title="Abrir JAMF Cloud">
-            <span data-i18n="menu.jamf">🍎 JAMF</span>
-          </div>
-          <div class="menu-item" id="menu-jira-portal" title="Abrir Jira Portal">
-            <span>🎫 Jira Portal</span>
-          </div>
-          <div class="menu-item" id="menu-google-admin" title="Abrir Google Admin Console">
-            <span>⚙️ Google Admin Console</span>
-          </div>
-          
-          <!-- 🧰 FERRAMENTAS -->
-          <div class="menu-section-header">Ferramentas</div>
-          <div class="menu-item" id="menu-search" title="Busca rápida de tickets (Cmd+K)">
-            <span data-i18n="menu.search">🔍 Busca Rápida</span>
-          </div>
-          <div class="menu-item" id="menu-shortcuts" title="Ver todos os atalhos de teclado">
-            <span data-i18n="menu.shortcuts">⌨️ Atalhos</span>
-          </div>
-          <div class="menu-item" id="menu-templates" title="Templates de resposta rápida (Cmd+Shift+T)">
-            <span data-i18n="menu.templates">📋 Templates</span>
-          </div>
-          <div class="menu-item" id="menu-timer" title="Abrir Timer/Pomodoro (Cmd+T)">
-            <span data-i18n="menu.timer">⏱️ Timer / Pomodoro</span>
-          </div>
-          
-          <!-- 🎨 INTERFACE -->
-          <div class="menu-section-header">Interface</div>
-          <div class="menu-item" id="menu-themes" title="Personalizar tema">
-            <span data-i18n="menu.themes">🎨 Temas</span>
-          </div>
-          <div class="menu-item" id="menu-compact-mode" title="Modo Compacto - Ultra minimalista (Cmd+Shift+C)">
-            <span>📏 Modo Compacto</span>
-          </div>
-          <div class="menu-item-slider" id="menu-opacity-container" title="Ajustar transparência da janela">
-            <div class="menu-item-slider-header">
-              <span>🌫️ Opacidade: <span id="opacity-value">100%</span></span>
-            </div>
-            <input type="range" id="opacity-slider" min="20" max="100" value="100" step="5" class="opacity-slider">
-          </div>
-          
-          <!-- ⚙️ CONFIGURAÇÕES -->
-          <div class="menu-section-header">Configurações</div>
-          <div class="menu-item" id="menu-settings" title="Abrir configurações (Cmd+,)">
-            <span data-i18n="menu.settings">⚙️ Configurações</span>
-          </div>
-          <div class="menu-item" id="menu-language" title="Idioma / Language / Idioma">
-            <span data-i18n="menu.language">🌍 Idioma</span>
-          </div>
-          <div class="menu-item" id="menu-focus-mode" title="Modo Focus - Interface minimalista (Cmd+Shift+F)">
-            <span>🎯 Modo Focus</span>
-          </div>
-          
-          <!-- 🔄 AÇÕES -->
-          <div class="menu-section-header">Ações</div>
-          <div class="menu-item" id="menu-refresh" title="Atualizar dados manualmente (Cmd+R)">
-            <span data-i18n="menu.refresh">🔄 Atualizar</span>
-          </div>
-          <div class="menu-item" id="menu-export" title="Exportar relatório">
-            <span data-i18n="menu.export">⬇️ Exportar</span>
-          </div>
-        </div>
         
         <!-- Preview de Notificações -->
         <div class="notifications-preview" id="notifications-preview" style="display: none;">
@@ -225,8 +217,15 @@
           </div>
         </div>
         
-        <!-- Dropdown de Documentação -->
-        <div class="docs-dropdown" id="docs-dropdown" style="display: none;">
+        <!-- Wrapper para posicionar o dropdown relativo ao botão (responsivo) -->
+        <div class="docs-dropdown-wrapper">
+          <button class="header-btn" id="docs-btn" title="Documentação" data-i18n="header.docs" data-i18n-title>
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+            </svg>
+          </button>
+          <!-- Dropdown de Documentação -->
+          <div class="docs-dropdown" id="docs-dropdown" style="display: none;">
           <div class="docs-dropdown-header">
             <h3>📚 Documentação</h3>
             <button class="close-preview-btn" id="close-docs-dropdown">✕</button>
@@ -244,8 +243,45 @@
               </svg>
               <span>Documentação BPO</span>
             </button>
+            <button class="docs-link-btn" data-url="https://docs.google.com/document/d/1bfuG9T3VOxgxT00Zd2GPqcutbXOxx6kMjYsL5RuAZ60/edit?tab=t.2uz575w3vsaq#heading=h.72vqz2ssallz">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+              </svg>
+              <span data-i18n="docs.bpoAeBrasil">Guia de Suporte BPO/AE Brasil</span>
+            </button>
           </div>
         </div>
+        </div>
+        
+        <!-- Botões de Zoom -->
+        <button class="header-btn zoom-btn" id="zoom-out-btn" title="Diminuir Zoom (Cmd+-)">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z"/>
+          </svg>
+        </button>
+        
+        <button class="header-btn zoom-btn" id="zoom-in-btn" title="Aumentar Zoom (Cmd++)">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-7h-1v2H7v1h2v2h1v-2h2V9h-2z"/>
+          </svg>
+        </button>
+        
+        <button class="header-btn" id="toggle-density-btn" title="Modo de Densidade">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M3 13h8v8H3v-8zm0-10h8v8H3V3zm10 0h8v8h-8V3zm0 10h8v8h-8v-8z"/>
+          </svg>
+        </button>
+        
+        <!-- Botão de Usuário Monitorado (CANTO SUPERIOR DIREITO) -->
+        <button class="header-btn user-monitor-btn" id="user-monitor-btn" title="Usuário Monitorado">
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+          <span class="user-monitor-label" id="user-monitor-label">Você</span>
+          <svg viewBox="0 0 24 24" width="14" height="14" class="dropdown-arrow">
+            <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+          </svg>
+        </button>
         
         <!-- Dropdown de Usuário Monitorado -->
         <div class="user-monitor-dropdown" id="user-monitor-dropdown" style="display: none;">
@@ -267,22 +303,17 @@
           </div>
         </div>
         
-        <!-- Dropdown de Zoom -->
-        <div class="zoom-dropdown" id="zoom-dropdown" style="display: none;">
-          <div class="zoom-dropdown-header">
-            <span>🔎 Zoom</span>
-          </div>
-          <div class="zoom-dropdown-body">
-            <button class="zoom-preset" data-zoom="50">50%</button>
-            <button class="zoom-preset" data-zoom="75">75%</button>
-            <button class="zoom-preset" data-zoom="100">100%</button>
-            <button class="zoom-preset" data-zoom="125">125%</button>
-            <button class="zoom-preset" data-zoom="150">150%</button>
-            <div class="zoom-slider-container">
-              <input type="range" id="zoom-slider" min="50" max="200" value="100" step="5">
-            </div>
-          </div>
-        </div>
+        <button class="header-btn" id="minimize-btn" title="Minimizar (Esc)" data-i18n="header.minimize" data-i18n-title>
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M19 13H5v-2h14v2z"/>
+          </svg>
+        </button>
+        
+        <button class="header-btn close-btn" id="close-btn" title="Fechar" data-i18n="header.close" data-i18n-title>
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -543,6 +574,52 @@
             <!-- Lista de tickets será inserida aqui -->
           </div>
         </div>
+
+        <!-- 👋 NOVA FILA: WELCOME IT HELP (Queue 25342) -->
+        <div class="stat-card stat-card-welcomeithelp" data-card-id="welcomeithelp" id="card-welcomeithelp">
+          <div class="stat-card-header">
+            <div class="stat-card-title-group">
+              <div class="stat-card-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                  <path fill="currentColor" d="M12 2l2.4 4.86L20 7.74l-4 3.9.94 5.46L12 14.77 7.06 17.1 8 11.64 4 7.74l5.6-.88L12 2z"/>
+                </svg>
+              </div>
+              <h3>WELCOME IT HELP</h3>
+            </div>
+            <button class="expand-btn" data-card="welcomeithelp" title="Expandir">
+              <svg class="expand-icon" viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+              </svg>
+            </button>
+          </div>
+          <div class="stat-number" id="stat-welcomeithelp">0</div>
+          <div class="tickets-list" id="tickets-list-welcomeithelp" style="display: none;">
+            <!-- Lista de tickets será inserida aqui -->
+          </div>
+        </div>
+
+        <!-- 🚨 NOVA FILA: CRITICIDADE_BB (Spaces selecionados) -->
+        <div class="stat-card stat-card-criticidadebb" data-card-id="criticidadebb" id="card-criticidadebb">
+          <div class="stat-card-header">
+            <div class="stat-card-title-group">
+              <div class="stat-card-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                  <path fill="currentColor" d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+              </div>
+              <h3>CRITICIDADE_BB</h3>
+            </div>
+            <button class="expand-btn" data-card="criticidadebb" title="Expandir">
+              <svg class="expand-icon" viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+              </svg>
+            </button>
+          </div>
+          <div class="stat-number" id="stat-criticidadebb">0</div>
+          <div class="tickets-list" id="tickets-list-criticidadebb" style="display: none;">
+            <!-- Lista de tickets será inserida aqui -->
+          </div>
+        </div>
       </div>
 
       <!-- Modo Pro -->
@@ -791,6 +868,85 @@
             </svg>
             <span data-i18n="perf.updateMetrics">Atualizar Métricas</span>
           </button>
+        </div>
+
+        <!-- 👥 VISÃO GESTOR: métricas por analista -->
+        <div class="pro-section" id="manager-metrics-section">
+          <div class="pro-section-header">
+            <h3 class="pro-section-title">👥 Visão gestor</h3>
+            <button class="expand-btn-inline" id="expand-manager-metrics" title="Expandir">
+              <svg class="expand-icon" viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+              </svg>
+            </button>
+          </div>
+          <div id="manager-metrics-content" style="display: none;">
+            <p class="manager-metrics-desc">Digite o nome ou e-mail do analista para ver métricas dos últimos 30 dias.</p>
+            <div class="manager-metrics-controls">
+              <label class="manager-metrics-label" for="manager-analyst-input">Analista</label>
+              <div class="manager-analyst-input-wrap">
+                <input type="text" id="manager-analyst-input" class="manager-analyst-input" placeholder="Digite nome ou e-mail do analista..." autocomplete="off" />
+                <div class="manager-analyst-suggestions" id="manager-analyst-suggestions"></div>
+              </div>
+              <button type="button" class="performance-refresh-btn manager-metrics-refresh-btn" id="manager-metrics-refresh-btn" title="Atualizar métricas">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                  <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+                <span>Atualizar</span>
+              </button>
+            </div>
+            <div class="manager-metrics-summary" id="manager-metrics-summary" style="display: none;">
+              <div class="manager-metrics-heading" id="manager-metrics-heading">Métricas</div>
+              <div class="performance-summary">
+                <div class="perf-metric perf-metric-primary">
+                  <div class="perf-metric-icon">⏱️</div>
+                  <div class="perf-metric-value" id="manager-perf-avg-resolution">--</div>
+                  <div class="perf-metric-label">Tempo Médio</div>
+                  <div class="perf-metric-sublabel">de resolução</div>
+                </div>
+                <div class="perf-metric perf-metric-success">
+                  <div class="perf-metric-icon">✅</div>
+                  <div class="perf-metric-value" id="manager-perf-tickets-resolved">0</div>
+                  <div class="perf-metric-label">Resolvidos</div>
+                  <div class="perf-metric-sublabel">últimos 30 dias</div>
+                </div>
+                <div class="perf-metric perf-metric-info">
+                  <div class="perf-metric-icon">📈</div>
+                  <div class="perf-metric-value" id="manager-perf-rate-week">0</div>
+                  <div class="perf-metric-label">Por Semana</div>
+                  <div class="perf-metric-sublabel">taxa fechamento</div>
+                </div>
+              </div>
+              <button type="button" class="manager-expand-details-btn" id="manager-expand-details-btn">
+                <span class="manager-expand-details-text" data-collapsed="Ver mais detalhes">Ver mais detalhes</span>
+                <svg class="manager-expand-details-icon" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
+              </button>
+              <div class="manager-performance-details" id="manager-performance-details" style="display: none;">
+                <div class="performance-charts">
+                  <div class="perf-chart-container">
+                    <h4 class="perf-chart-title">🏷️ Por Prioridade</h4>
+                    <canvas id="manager-chart-by-priority" width="200" height="200"></canvas>
+                    <div id="manager-chart-legend-priority" class="chart-legend"></div>
+                  </div>
+                  <div class="perf-chart-container">
+                    <h4 class="perf-chart-title">📦 Por Projeto</h4>
+                    <canvas id="manager-chart-by-project" width="200" height="200"></canvas>
+                    <div id="manager-chart-legend-project" class="chart-legend"></div>
+                  </div>
+                </div>
+                <div class="perf-heatmap-container">
+                  <h4 class="perf-chart-title">🔥 Heatmap de Atividade</h4>
+                  <div class="heatmap-subtitle">Horários mais produtivos (últimos 30 dias)</div>
+                  <div class="heatmap-grid" id="manager-heatmap-by-hour"></div>
+                  <div class="heatmap-labels"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span></div>
+                </div>
+                <div class="perf-recent-resolved manager-recent-resolved">
+                  <h4 class="perf-chart-title">📋 Últimos 10 resolvidos</h4>
+                  <div class="recent-resolved-list" id="manager-recent-resolved-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -1215,7 +1371,7 @@
         
         <div class="config-group">
           <label for="jira-url" data-i18n="settings.jiraUrl">URL do Jira</label>
-          <input type="text" id="jira-url" placeholder="https://sua-empresa.atlassian.net">
+          <input type="text" id="jira-url" placeholder="https://nubank.atlassian.net" value="https://nubank.atlassian.net">
         </div>
 
         <div class="config-group">
@@ -1300,19 +1456,6 @@
               <span>📢 Quando você for mencionado</span>
             </label>
           </div>
-          <div class="config-group checkbox-group" style="margin-bottom: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
-            <label>
-              <input type="checkbox" id="proactive-alerts">
-              <span>⏰ Alertas proativos (tickets aguardando resposta)</span>
-            </label>
-          </div>
-          <div class="config-group" id="proactive-alerts-config" style="margin-left: 24px; display: none;">
-            <label style="font-size: 12px; opacity: 0.8;">
-              Alertar após
-              <input type="number" id="proactive-alerts-hours" value="2" min="1" max="24" style="width: 50px; margin: 0 4px;">
-              horas sem resposta
-            </label>
-          </div>
         </div>
 
         <div class="config-group checkbox-group">
@@ -1350,7 +1493,7 @@
             type="email" 
             id="new-user-email-input" 
             class="new-user-email-input" 
-            placeholder="user@company.com"
+            placeholder="exemplo@nubank.com.br"
             autocomplete="off"
           />
           <div class="add-user-actions">
@@ -1386,6 +1529,7 @@
               <div class="shortcut-keys">
                 <kbd>Cmd</kbd> + <kbd>L</kbd>
               </div>
+              <div class="shortcut-description">🔄 Alternar layout (vertical/horizontal)</div>
             </div>
             <div class="shortcut-item">
               <div class="shortcut-keys">
@@ -1504,45 +1648,11 @@
     <div class="resize-handle" id="resize-handle"></div>
   </div>
 
-  <!-- Botão para sair do Modo Focus -->
-  <button id="exit-focus-btn" onclick="toggleFocusMode()" title="Sair do Modo Focus (Cmd+Shift+F)">
-    ✕ Sair do Focus
-  </button>
-  <style>
-    #exit-focus-btn {
-      display: none;
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      z-index: 99999;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-      transition: all 0.3s ease;
-    }
-    #exit-focus-btn:hover {
-      transform: scale(1.05);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-    }
-    .focus-mode #exit-focus-btn {
-      display: block !important;
-    }
-  </style>
-
-  <!-- Compatibilidade Electron -> HTTP -->
   <script src="electron-compat.js"></script>
-  <script src="confetti.js"></script>
   <script src="renderer.js"></script>
-  
-  <!-- Menu de contexto para copiar texto -->
+
+  <!-- Menu de contexto (PyWebView: sem menu nativo completo) -->
   <script>
-    // Criar menu de contexto customizado
     const contextMenu = document.createElement('div');
     contextMenu.id = 'custom-context-menu';
     contextMenu.innerHTML = `
@@ -1564,46 +1674,30 @@
       font-size: 13px;
     `;
     document.body.appendChild(contextMenu);
-    
-    // Estilo dos itens
     contextMenu.querySelectorAll('.context-menu-item').forEach(item => {
-      item.style.cssText = `
-        padding: 6px 12px;
-        cursor: default;
-        color: #fff;
-      `;
+      item.style.cssText = `padding: 6px 12px; cursor: default; color: #fff;`;
       item.addEventListener('mouseenter', () => item.style.background = '#667eea');
       item.addEventListener('mouseleave', () => item.style.background = 'transparent');
     });
-    
-    // Mostrar menu ao clicar com botão direito
     document.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       contextMenu.style.display = 'block';
       contextMenu.style.left = Math.min(e.clientX, window.innerWidth - 150) + 'px';
       contextMenu.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
     });
-    
-    // Esconder menu ao clicar em qualquer lugar ou pressionar ESC
     document.addEventListener('mousedown', (e) => {
-      if (!contextMenu.contains(e.target)) {
-        contextMenu.style.display = 'none';
-      }
+      if (!contextMenu.contains(e.target)) contextMenu.style.display = 'none';
     });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') contextMenu.style.display = 'none';
     });
     document.addEventListener('scroll', () => contextMenu.style.display = 'none', true);
     window.addEventListener('blur', () => contextMenu.style.display = 'none');
-    
-    // Ações do menu
     contextMenu.addEventListener('click', async (e) => {
       const action = e.target.dataset.action;
       if (!action) return;
-      
       const selection = window.getSelection().toString();
       const activeEl = document.activeElement;
-      
       if (action === 'copy' && selection) {
         try { await navigator.clipboard.writeText(selection); } catch { document.execCommand('copy'); }
       }

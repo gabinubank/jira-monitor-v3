@@ -404,6 +404,13 @@ class JiraAPI:
         save_config(config)
         return {"success": True}
     
+    def _assignee_jql(self):
+        """assignee = currentUser() ou e-mail entre aspas (modo monitorar outro)."""
+        global config
+        if config.get('monitorOtherUser') and config.get('otherUserEmail'):
+            return f'"{config["otherUserEmail"]}"'
+        return 'currentUser()'
+    
     # Canned Responses (Respostas Prontas)
     def getCannedResponses(self):
         return {"success": True, "data": load_canned_responses()}
@@ -949,13 +956,27 @@ class JiraAPI:
             "content": [{"type": "paragraph", "content": paragraph_content}]
         }
     
-    def addWorklog(self, key, time_spent, comment=""):
+    def addWorklog(self, key, time_spent_seconds, comment="", started_date=None):
+        """time_spent_seconds: int (API v3); started_date: ISO string opcional."""
         try:
-            body = {"timeSpent": time_spent}
+            from datetime import datetime, timezone
+            body = {"timeSpentSeconds": int(time_spent_seconds)}
             if comment:
                 body["comment"] = {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": comment}]}]}
-            r = requests.post(f"{jira_url()}/rest/api/3/issue/{key}/worklog", auth=get_auth(), headers=get_headers(), json=body)
-            return {"success": r.status_code in [200, 201]}
+            if started_date:
+                body["started"] = started_date
+            else:
+                body["started"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+            r = requests.post(
+                f"{jira_url()}/rest/api/3/issue/{key}/worklog",
+                auth=get_auth(),
+                headers=get_headers(),
+                json=body,
+                timeout=30
+            )
+            if r.status_code in (200, 201):
+                return {"success": True, "data": r.json() if r.text else {}}
+            return {"success": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
@@ -986,8 +1007,8 @@ class JiraAPI:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def updateComment(self, key, comment_id, new_body):
-        """Atualizar um comentário existente"""
+    def updateComment(self, key, comment_id, new_body, is_internal=None):
+        """Atualizar um comentário (is_internal reservado; Jira usa PUT com body ADF)."""
         try:
             body = {
                 "body": {
@@ -1408,8 +1429,8 @@ class JiraAPI:
                     file_types=file_types
                 )
                 if result:
-                    return {"cancelled": False, "filePaths": list(result)}
-            return {"cancelled": True}
+                    return {"success": True, "cancelled": False, "filePaths": list(result)}
+            return {"success": False, "cancelled": True}
         except Exception as e:
             print(f"[api] File dialog error: {e}")
             return {"cancelled": True, "error": str(e)}
@@ -1478,99 +1499,6 @@ class JiraAPI:
             return {"success": True}
         except:
             return {"success": False}
-    
-    def checkTicketsNeedingResponse(self, hours_threshold=2):
-        """
-        Verifica tickets onde o último comentário público é do cliente
-        e já se passaram X horas sem resposta do agente
-        """
-        try:
-            # Buscar tickets atribuídos ao usuário atual que estão abertos
-            jql = 'assignee = currentUser() AND status NOT IN (Resolved, Closed, Done, Cancelled) ORDER BY updated DESC'
-            
-            r = requests.post(
-                f"{jira_url()}/rest/api/3/search",
-                auth=get_auth(),
-                headers=get_headers(),
-                json={
-                    "jql": jql,
-                    "maxResults": 50,
-                    "fields": ["key", "summary", "comment", "updated"]
-                },
-                timeout=15
-            )
-            
-            if r.status_code != 200:
-                return {"success": False, "error": f"Status {r.status_code}"}
-            
-            issues = r.json().get("issues", [])
-            tickets_needing_response = []
-            
-            # Obter accountId do usuário atual
-            r_user = requests.get(f"{jira_url()}/rest/api/3/myself", auth=get_auth(), headers=get_headers(), timeout=5)
-            my_account_id = r_user.json().get("accountId") if r_user.status_code == 200 else None
-            
-            from datetime import datetime, timezone
-            now = datetime.now(timezone.utc)
-            
-            for issue in issues:
-                key = issue.get("key")
-                summary = issue.get("fields", {}).get("summary", "")
-                comments = issue.get("fields", {}).get("comment", {}).get("comments", [])
-                
-                if not comments:
-                    continue
-                
-                # Pegar último comentário público (não interno)
-                public_comments = [c for c in comments if not c.get("jsdPublic") == False]
-                
-                if not public_comments:
-                    continue
-                
-                last_comment = public_comments[-1]
-                last_author_id = last_comment.get("author", {}).get("accountId")
-                last_comment_time = last_comment.get("created", "")
-                
-                # Se o último comentário é meu, não preciso responder
-                if last_author_id == my_account_id:
-                    continue
-                
-                # Calcular tempo desde o último comentário
-                try:
-                    comment_dt = datetime.fromisoformat(last_comment_time.replace("Z", "+00:00"))
-                    hours_since = (now - comment_dt).total_seconds() / 3600
-                    
-                    if hours_since >= hours_threshold:
-                        tickets_needing_response.append({
-                            "key": key,
-                            "summary": summary[:50] + "..." if len(summary) > 50 else summary,
-                            "hours_waiting": round(hours_since, 1),
-                            "last_comment_by": last_comment.get("author", {}).get("displayName", "Cliente")
-                        })
-                except:
-                    pass
-            
-            return {"success": True, "tickets": tickets_needing_response}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    
-    def sendProactiveAlerts(self, hours_threshold=2):
-        """Envia notificações para tickets que precisam de resposta"""
-        result = self.checkTicketsNeedingResponse(hours_threshold)
-        
-        if not result.get("success") or not result.get("tickets"):
-            return {"success": True, "alerted": 0}
-        
-        tickets = result["tickets"]
-        
-        # Limitar a 3 notificações por vez para não spammar
-        for ticket in tickets[:3]:
-            self.showNotification(
-                f"⏰ {ticket['key']} aguardando resposta",
-                f"{ticket['summary']} - {ticket['hours_waiting']}h sem resposta"
-            )
-        
-        return {"success": True, "alerted": len(tickets[:3]), "total": len(tickets)}
     
     def testNotification(self):
         """Gerar notificação de teste"""
@@ -1695,50 +1623,34 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
         return {"success": True}
     
     def updateTray(self, tickets_data):
-        """
-        Atualiza a mini janela flutuante com dados dos tickets
-        
-        Args:
-            tickets_data: { 'critical': [], 'warning': [], 'normal': [] }
-        """
-        global mini_window
+        """Atualiza mini janela flutuante (faróis) e menu bar, se existirem."""
+        global mini_window, tray_tickets_data
+        data = tickets_data or {'critical': [], 'warning': [], 'normal': []}
+        critical = len(data.get('critical', []))
+        warning = len(data.get('warning', []))
+        normal = len(data.get('normal', []))
+        ok_any = False
         if mini_window:
             try:
-                data = tickets_data or {'critical': [], 'warning': [], 'normal': []}
-                
-                # Atualizar via JavaScript
                 js = f'''
                     if (typeof updateDisplay === 'function') {{
                         updateDisplay({json.dumps(data)});
                     }}
                 '''
                 mini_window.evaluate_js(js)
-                return {"success": True}
+                ok_any = True
             except Exception as e:
-                return {"success": False, "error": str(e)}
-        return {"success": False, "error": "Mini window not initialized"}
-    
-    def updateTray(self, tickets_data):
-        """Atualiza o tray com dados de SLA dos tickets"""
-        global tray_tickets_data
-        
-        if not HAS_TRAY:
-            return {"success": False, "error": "Tray não disponível"}
-        
-        try:
-            # Salvar dados para o menu (será usado quando o menu for aberto)
-            tray_tickets_data = tickets_data
-            
-            critical = len(tickets_data.get('critical', []))
-            warning = len(tickets_data.get('warning', []))
-            normal = len(tickets_data.get('normal', []))
-            
-            # Atualizar apenas o ícone (menu atualiza dinamicamente ao abrir)
-            update_tray_status(critical=critical, warning=warning, normal=normal)
-            
-            return {"success": True, "critical": critical, "warning": warning, "normal": normal}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+                print(f"[tray] mini_window: {e}")
+        if HAS_TRAY:
+            try:
+                tray_tickets_data = data
+                update_tray_status(critical=critical, warning=warning, normal=normal)
+                ok_any = True
+            except Exception as e:
+                print(f"[tray] status bar: {e}")
+        if not ok_any:
+            return {"success": False, "error": "Mini janela e tray indisponíveis"}
+        return {"success": True, "critical": critical, "warning": warning, "normal": normal}
     
     def checkTicketsNeedingResponse(self, hours_threshold=2):
         """
@@ -1746,7 +1658,8 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
         e já se passaram X horas sem resposta do agente
         """
         try:
-            jql = 'assignee = currentUser() AND status NOT IN (Resolved, Closed, Done, Cancelled) ORDER BY updated DESC'
+            assignee = self._assignee_jql()
+            jql = f'assignee = {assignee} AND status NOT IN (Resolved, Closed, Done, Cancelled) ORDER BY updated DESC'
             
             r = requests.post(
                 f"{jira_url()}/rest/api/3/search",
@@ -1917,15 +1830,19 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
             'showTicketList': False
         })
     
-    def getPerformanceMetrics(self, days=30):
-        """Buscar métricas de performance dos últimos X dias"""
+    def getPerformanceMetrics(self, days=30, for_user_email=None):
+        """Buscar métricas de performance dos últimos X dias (for_user_email = visão gestor)."""
         from datetime import datetime, timedelta
         
         try:
             start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            if for_user_email and str(for_user_email).strip():
+                assignee = f'"{str(for_user_email).strip()}"'
+            else:
+                assignee = self._assignee_jql()
             
             # Tickets resolvidos nos últimos X dias
-            jql = f'assignee = currentUser() AND resolved >= "{start_date}" ORDER BY resolved DESC'
+            jql = f'assignee = {assignee} AND resolved >= "{start_date}" ORDER BY resolved DESC'
             r = requests.post(
                 f"{jira_url()}/rest/api/3/search/jql",
                 auth=get_auth(),
@@ -2004,6 +1921,13 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
             print(f"[api] Performance metrics error: {e}")
             return {"success": True, "data": self._empty_performance_metrics()}
     
+    def getPerformanceMetricsForUser(self, user_email=None, days=30):
+        try:
+            d = int(days) if days is not None else 30
+            return self.getPerformanceMetrics(d, user_email)
+        except Exception as e:
+            return {"success": False, "error": str(e), "data": None}
+    
     def _empty_performance_metrics(self):
         return {
             "avgResolutionDays": 0,
@@ -2025,8 +1949,9 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
             future_threshold = now + timedelta(minutes=minutes_before)
             future_str = future_threshold.strftime("%Y-%m-%d %H:%M")
             
+            assignee = self._assignee_jql()
             # Buscar tickets com duedate próximo
-            jql = f'assignee = currentUser() AND resolution = Unresolved AND duedate <= "{future_str}" ORDER BY duedate ASC'
+            jql = f'assignee = {assignee} AND resolution = Unresolved AND duedate <= "{future_str}" ORDER BY duedate ASC'
             
             r = requests.post(
                 f"{jira_url()}/rest/api/3/search/jql",
@@ -2038,7 +1963,7 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
             
             if r.status_code != 200:
                 print(f"[api] Critical SLA error: {r.status_code}")
-                return {"success": True, "tickets": []}
+                return {"success": True, "data": []}
             
             issues = r.json().get("issues", [])
             tickets = []
@@ -2065,10 +1990,10 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
                         pass
             
             print(f"[api] Critical SLA: {len(tickets)} tickets")
-            return {"success": True, "tickets": tickets}
+            return {"success": True, "data": tickets}
         except Exception as e:
             print(f"[api] Critical SLA error: {e}")
-            return {"success": True, "tickets": []}
+            return {"success": True, "data": []}
     
     def getItopsTeamOptions(self):
         """Buscar opções disponíveis para o campo ITOps Team"""
@@ -2338,14 +2263,15 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
             # Obter account ID do usuário atual
             r_user = requests.get(f"{jira_url()}/rest/api/3/myself", auth=get_auth(), headers=get_headers(), timeout=5)
             if r_user.status_code != 200:
-                return {"success": True, "notifications": []}
+                return {"success": True, "data": []}
             
             user_data = r_user.json()
             user_account_id = user_data.get("accountId")
             user_email = user_data.get("emailAddress", "")
+            assignee = self._assignee_jql()
             
-            # Buscar tickets onde o usuário é assignee, watcher ou reporter (últimos 7 dias)
-            jql = 'assignee = currentUser() AND updated >= -7d ORDER BY updated DESC'
+            # Buscar tickets onde o usuário é assignee (últimos 7 dias)
+            jql = f'assignee = {assignee} AND updated >= -7d ORDER BY updated DESC'
             
             r = requests.post(
                 f"{jira_url()}/rest/api/3/search/jql",
@@ -2357,7 +2283,7 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
             
             if r.status_code != 200:
                 print(f"[api] Notifications error: {r.status_code}")
-                return {"success": True, "notifications": []}
+                return {"success": True, "data": []}
             
             issues = r.json().get("issues", [])
             notifications = []
@@ -2406,10 +2332,204 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
             result = notifications[:max_results]
             
             print(f"[api] Notifications: {len(result)} of {len(notifications)} total")
-            return {"success": True, "notifications": result}
+            return {"success": True, "data": result}
         except Exception as e:
             print(f"[api] Notifications error: {e}")
-            return {"success": True, "notifications": []}
+            return {"success": True, "data": []}
+    
+    def getNotifications(self, _cfg=None):
+        """Compatível com IPC get-notifications do Electron."""
+        r = self.getRecentNotifications(15)
+        return {"success": r.get("success", True), "notifications": r.get("data", [])}
+    
+    def getCurrentUserAccountId(self):
+        try:
+            r = requests.get(f"{jira_url()}/rest/api/3/myself", auth=get_auth(), headers=get_headers(), timeout=10)
+            if r.status_code == 200:
+                return {"success": True, "accountId": r.json().get("accountId")}
+            return {"success": False, "error": f"HTTP {r.status_code}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def getTicketEditMetadata(self, ticket_key):
+        try:
+            r = requests.get(
+                f"{jira_url()}/rest/api/3/issue/{ticket_key}/editmeta",
+                auth=get_auth(),
+                headers=get_headers(),
+                timeout=20
+            )
+            if r.status_code != 200:
+                return {"success": False, "error": f"HTTP {r.status_code}"}
+            meta = r.json()
+            fields = {}
+            for fk, field in (meta.get("fields") or {}).items():
+                fields[fk] = {
+                    "name": field.get("name"),
+                    "required": field.get("required"),
+                    "schema": field.get("schema"),
+                    "allowedValues": field.get("allowedValues") or []
+                }
+            return {"success": True, "data": fields}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def updateTicketFields(self, ticket_key, fields):
+        if not isinstance(fields, dict):
+            fields = {}
+        try:
+            if fields.get("statusId"):
+                tr = requests.post(
+                    f"{jira_url()}/rest/api/3/issue/{ticket_key}/transitions",
+                    auth=get_auth(),
+                    headers=get_headers(),
+                    json={"transition": {"id": fields["statusId"]}},
+                    timeout=20
+                )
+                if tr.status_code not in (200, 204):
+                    return {"success": False, "error": tr.text[:400]}
+            update_fields = {}
+            if fields.get("assignee"):
+                update_fields["assignee"] = {"accountId": fields["assignee"]}
+            if fields.get("reporter"):
+                update_fields["reporter"] = {"accountId": fields["reporter"]}
+            for fid, val in (fields.get("customFields") or {}).items():
+                update_fields[fid] = {"value": val}
+            if update_fields:
+                ur = requests.put(
+                    f"{jira_url()}/rest/api/3/issue/{ticket_key}",
+                    auth=get_auth(),
+                    headers=get_headers(),
+                    json={"fields": update_fields},
+                    timeout=20
+                )
+                if ur.status_code not in (200, 204):
+                    return {"success": False, "error": ur.text[:400]}
+            return {"success": True, "data": {}}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def getCustomFieldOptions(self, ticket_key, field_id):
+        try:
+            r = requests.get(
+                f"{jira_url()}/rest/api/3/issue/{ticket_key}/editmeta",
+                auth=get_auth(),
+                headers=get_headers(),
+                timeout=20
+            )
+            if r.status_code != 200:
+                return {"success": False, "error": f"HTTP {r.status_code}"}
+            field = (r.json().get("fields") or {}).get(field_id)
+            if not field:
+                return {"success": True, "data": []}
+            allowed = field.get("allowedValues") or []
+            out = []
+            for value in allowed:
+                if isinstance(value, str):
+                    out.append({"id": value, "name": value, "value": value})
+                else:
+                    out.append({
+                        "id": value.get("id") or value.get("value"),
+                        "name": value.get("name") or value.get("value"),
+                        "value": value.get("value")
+                    })
+            return {"success": True, "data": out}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def getTicketsWithoutResponseSince(self, hours=4):
+        from datetime import datetime, timezone, timedelta
+        try:
+            assignee = self._assignee_jql()
+            global config
+            r_user = requests.get(f"{jira_url()}/rest/api/3/myself", auth=get_auth(), headers=get_headers(), timeout=5)
+            user_email = ""
+            if r_user.status_code == 200:
+                user_email = r_user.json().get("emailAddress") or ""
+            if config.get("monitorOtherUser") and config.get("otherUserEmail"):
+                user_email = config.get("otherUserEmail") or user_email
+            
+            threshold = datetime.now(timezone.utc) - timedelta(hours=int(hours or 4))
+            date_str = threshold.strftime("%Y-%m-%d %H:%M")
+            jql = (
+                f'assignee = {assignee} AND status in ("Waiting for Support", "In Progress") '
+                f'AND updated <= "{date_str}" ORDER BY updated ASC'
+            )
+            r = requests.post(
+                f"{jira_url()}/rest/api/3/search/jql",
+                auth=get_auth(),
+                headers=get_headers(),
+                json={"jql": jql, "maxResults": 50, "fields": ["key", "summary", "updated", "status", "priority", "comment"]},
+                timeout=20
+            )
+            if r.status_code != 200:
+                return {"success": False, "error": f"HTTP {r.status_code}", "data": []}
+            
+            issues = r.json().get("issues", [])
+            now = datetime.now(timezone.utc)
+            data = []
+            for issue in issues:
+                key = issue.get("key")
+                fields = issue.get("fields", {})
+                summary = fields.get("summary", "")
+                comments = fields.get("comment", {}).get("comments", [])
+                needs = True
+                if comments:
+                    last = comments[-1]
+                    auth_ = last.get("author", {})
+                    last_author = auth_.get("emailAddress") or auth_.get("displayName") or ""
+                    needs = last_author != user_email
+                if not needs:
+                    continue
+                updated = fields.get("updated", "")
+                try:
+                    upd_dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                    hours_since = int((now - upd_dt).total_seconds() / (60 * 60))
+                except Exception:
+                    hours_since = 0
+                st = fields.get("status", {}) or {}
+                pr = fields.get("priority", {}) or {}
+                data.append({
+                    "key": key,
+                    "summary": summary,
+                    "updated": updated,
+                    "status": st.get("name"),
+                    "priority": pr.get("name"),
+                    "hoursSinceUpdate": hours_since
+                })
+            return {"success": True, "data": data}
+        except Exception as e:
+            return {"success": False, "error": str(e), "data": []}
+    
+    def showNativeNotification(self, options=None):
+        options = options or {}
+        title = str(options.get("title") or "Jira Monitor").replace('"', "'")[:180]
+        body = str(options.get("body") or "").replace('"', "'")[:500]
+        try:
+            subprocess.run(
+                ["osascript", "-e", f'display notification "{body}" with title "{title}"'],
+                check=False
+            )
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def toggleDevtools(self):
+        return {"success": True, "message": "Use webview.start(debug=True) no main.py para depurar"}
+    
+    def checkForUpdates(self):
+        return {"success": False, "message": "Atualização automática não disponível na build PyWebView"}
+    
+    def performUpdate(self):
+        return {"success": False, "message": "Atualização automática não disponível na build PyWebView"}
+    
+    def playSound(self, sound_path=""):
+        try:
+            if platform.system() == "Darwin" and sound_path:
+                subprocess.Popen(["afplay", sound_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     def _checkMentionInADF(self, adf, user_id, user_email):
         """Verificar se há menção ao usuário no formato ADF"""
