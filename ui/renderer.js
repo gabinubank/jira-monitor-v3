@@ -19,8 +19,8 @@ let updateInterval = null;
 let isProMode = false;
 let isHorizontalLayout = false;
 let layoutMode = 'normal'; // normal, horizontal, super-compact
-const SUPER_COMPACT_WIDTH = 360;
-const SUPER_COMPACT_HEIGHT = 72;
+const SUPER_COMPACT_WIDTH = 520;
+const SUPER_COMPACT_HEIGHT = 78;
 
 // 🚀 OTIMIZAÇÃO: Limpar cache de SLA periodicamente (a cada 10 minutos)
 setInterval(() => {
@@ -45,6 +45,8 @@ setInterval(() => {
 let connectionStatus = 'offline'; // online, offline, loading
 let progressInterval = null;
 let lastUpdateTime = null;
+/** API falhou mas ainda há snapshot anterior na UI */
+let dataStale = false;
 let densityMode = 'default'; // default, compact, comfortable
 let isMicroMode = false; // Modo micro (visualização ultra compacta)
 let isSecondaryWindow = false; // Se esta é uma janela secundária de monitoramento
@@ -73,6 +75,113 @@ let dailyActivityWidgetClosed = false; // Flag para rastrear se o usuário fecho
 let dailyActivityLastValues = { received: 0, resolved: 0, commented: 0 }; // Valores quando foi fechado
 let lastMentionsCheck = {}; // Rastrear últimas menções verificadas
 let currentLanguage = 'pt-BR'; // Idioma atual
+
+function getJiraBaseUrl() {
+  const u = (currentConfig.jiraUrl || '').replace(/\/+$/, '');
+  return u || 'https://nubank.atlassian.net';
+}
+
+function setStaleUiState(stale) {
+  dataStale = !!stale;
+  const el = document.getElementById('last-update');
+  if (el) el.classList.toggle('last-update--stale', dataStale);
+  updateLastUpdateTime();
+}
+
+function buildCompactMirrorPayload(stats) {
+  const s = stats || {};
+  return {
+    waitingForSupport: s.waitingForSupport || 0,
+    waitingForCustomer: s.waitingForCustomer || 0,
+    pending: s.pending || 0,
+    inProgress: s.inProgress || 0,
+    simcardCount: s.simcardPendingTickets?.count ?? 0,
+    l0Count: s.l0BotTickets?.count ?? 0,
+    l1Count: s.l1OpenTickets?.count ?? 0,
+    welcomeCount: s.welcomeItHelpTickets?.count ?? 0,
+    criticidadeCount: s.criticidadeBbTickets?.count ?? 0,
+    simOpenUrl: s.simcardPendingTickets?.openUrl,
+    simJql: s.simcardPendingTickets?.jql,
+    welcomeJql: s.welcomeItHelpTickets?.jql,
+    criticidadeJql: s.criticidadeBbTickets?.jql
+  };
+}
+
+function applyMirrorStatsPartial(p) {
+  if (!p || typeof p !== 'object') return;
+  const pairs = [
+    ['stat-support', 'waitingForSupport'],
+    ['stat-customer', 'waitingForCustomer'],
+    ['stat-pending', 'pending'],
+    ['stat-inprogress', 'inProgress'],
+    ['stat-simcard', 'simcardCount'],
+    ['stat-l0bot', 'l0Count'],
+    ['stat-l1open', 'l1Count'],
+    ['stat-welcomeithelp', 'welcomeCount'],
+    ['stat-criticidadebb', 'criticidadeCount']
+  ];
+  pairs.forEach(([id, key]) => {
+    if (p[key] === undefined) return;
+    const el = document.getElementById(id);
+    if (el) el.textContent = p[key];
+  });
+  if (!currentStats) currentStats = {};
+  ['waitingForSupport', 'waitingForCustomer', 'pending', 'inProgress'].forEach((k) => {
+    if (p[k] !== undefined) currentStats[k] = p[k];
+  });
+  if (p.simOpenUrl != null || p.simJql != null || p.simcardCount !== undefined) {
+    currentStats.simcardPendingTickets = {
+      ...(currentStats.simcardPendingTickets || {}),
+      openUrl: p.simOpenUrl != null ? p.simOpenUrl : currentStats.simcardPendingTickets?.openUrl,
+      jql: p.simJql != null ? p.simJql : currentStats.simcardPendingTickets?.jql,
+      count: p.simcardCount !== undefined ? p.simcardCount : currentStats.simcardPendingTickets?.count
+    };
+  }
+  if (p.welcomeJql != null) {
+    currentStats.welcomeItHelpTickets = { ...(currentStats.welcomeItHelpTickets || {}), jql: p.welcomeJql };
+  }
+  if (p.criticidadeJql != null) {
+    currentStats.criticidadeBbTickets = { ...(currentStats.criticidadeBbTickets || {}), jql: p.criticidadeJql };
+  }
+}
+
+function applyExtraQueueCounters(stats) {
+  if (!stats) return;
+  if (stats.simcardPendingTickets) {
+    animateNumber('stat-simcard', stats.simcardPendingTickets.count || 0);
+    const simCardsCountEl = document.getElementById('sim-cards-count');
+    if (simCardsCountEl) simCardsCountEl.textContent = stats.simcardPendingTickets.count || 0;
+  } else {
+    animateNumber('stat-simcard', 0);
+    const simCardsCountEl = document.getElementById('sim-cards-count');
+    if (simCardsCountEl) simCardsCountEl.textContent = '0';
+  }
+  if (stats.l0BotTickets) {
+    animateNumber('stat-l0bot', stats.l0BotTickets.count || 0);
+  } else {
+    animateNumber('stat-l0bot', 0);
+  }
+  if (stats.l1OpenTickets) {
+    animateNumber('stat-l1open', stats.l1OpenTickets.count || 0);
+  } else {
+    animateNumber('stat-l1open', 0);
+  }
+  if (stats.welcomeItHelpTickets) {
+    animateNumber('stat-welcomeithelp', stats.welcomeItHelpTickets.count || 0);
+  } else {
+    animateNumber('stat-welcomeithelp', 0);
+  }
+  const newBbCount = stats.criticidadeBbTickets ? (stats.criticidadeBbTickets.count || 0) : 0;
+  if (previousCriticidadeBbCount !== null && newBbCount > previousCriticidadeBbCount) {
+    triggerCriticidadeBbCardBlink();
+  }
+  previousCriticidadeBbCount = newBbCount;
+  if (stats.criticidadeBbTickets) {
+    animateNumber('stat-criticidadebb', stats.criticidadeBbTickets.count || 0);
+  } else {
+    animateNumber('stat-criticidadebb', 0);
+  }
+}
 
 // ========================================
 // 🌍 FUNÇÕES DE INTERNACIONALIZAÇÃO
@@ -565,17 +674,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (container) container.classList.add('super-compact-layout');
     if (header) header.style.display = 'none';
     if (footer) footer.style.display = 'none';
-    ipcRenderer.on('compact-mirror-stats', (e, stats) => {
-      currentStats = stats;
-      const ids = ['stat-support', 'stat-customer', 'stat-pending', 'stat-inprogress'];
-      const keys = ['waitingForSupport', 'waitingForCustomer', 'pending', 'inProgress'];
-      ids.forEach((id, i) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = stats[keys[i]] ?? 0;
-      });
-    });
     await loadConfig();
     setupCardListeners();
+    async function mirrorPollTick() {
+      try {
+        const r = await ipcRenderer.invoke('get-mirror-stats');
+        if (r && r.success && r.data) applyMirrorStatsPartial(r.data);
+      } catch (e) {
+        console.warn('[mirror] poll:', e);
+      }
+    }
+    mirrorPollTick();
+    setInterval(mirrorPollTick, 2000);
     return;
   }
   
@@ -1582,11 +1692,9 @@ function setupEventListeners() {
   // SIM Cards count button - abre o filtro no Jira
   const simCardsCountBtn = document.getElementById('sim-cards-count-btn');
   if (simCardsCountBtn) {
-    simCardsCountBtn.addEventListener('click', () => {
-      if (currentStats && currentStats.simcardPendingTickets && currentStats.simcardPendingTickets.jql) {
-        const jiraUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
-        ipcRenderer.send('open-url', `${jiraUrl}/issues/?filter=52128`);
-      }
+    simCardsCountBtn.addEventListener('click', async () => {
+      const sim = currentStats?.simcardPendingTickets;
+      await ipcRenderer.invoke('open-sim-cards-jira', sim || {});
     });
   }
   
@@ -2721,12 +2829,7 @@ function toggleLayout() {
     
     // Enviar stats atuais para janelas espelho (multi-display)
     if (currentStats) {
-      ipcRenderer.send('compact-mirror-update-stats', {
-        waitingForSupport: currentStats.waitingForSupport || 0,
-        waitingForCustomer: currentStats.waitingForCustomer || 0,
-        pending: currentStats.pending || 0,
-        inProgress: currentStats.inProgress || 0
-      });
+      ipcRenderer.send('compact-mirror-update-stats', buildCompactMirrorPayload(currentStats));
     }
     
     showToast('Layout', 'Modo Super Compacto ativo - Sempre visível', 'info');
@@ -3365,6 +3468,9 @@ async function fetchAndUpdateStats() {
       currentStats = result.data;
       searchTickets = result.data.allTickets || [];
       
+      lastUpdateTime = new Date();
+      setStaleUiState(false);
+      
       debugLog('🎨 Chamando updateUI() com dados finais...');
       updateUI(result.data);
       
@@ -3376,13 +3482,13 @@ async function fetchAndUpdateStats() {
       
       // Atualizar status de sucesso
       updateConnectionStatus('online');
-      lastUpdateTime = new Date();
       updateLastUpdateTime();
       startProgressBar();
     } else {
       showError(result.error);
       updateConnectionStatus('offline');
       showErrorBanner('Erro ao buscar dados', result.error);
+      if (currentStats) setStaleUiState(true);
     }
     
     refreshBtn.classList.remove('loading');
@@ -3391,6 +3497,7 @@ async function fetchAndUpdateStats() {
     showError(error.message);
     updateConnectionStatus('offline');
     showErrorBanner('Erro de Conexão', 'Não foi possível conectar ao Jira. Verifique sua conexão e credenciais.');
+    if (currentStats) setStaleUiState(true);
     
     const refreshBtn = document.getElementById('refresh-btn');
     refreshBtn.classList.remove('loading');
@@ -3666,15 +3773,9 @@ function updateUI(stats) {
   animateNumber('stat-pending', stats.pending || 0);
   animateNumber('stat-inprogress', stats.inProgress || 0);
   
-  // Sincronizar stats com janelas espelho (modo compacto em múltiplos displays)
-  if (layoutMode === 'super-compact') {
-    ipcRenderer.send('compact-mirror-update-stats', {
-      waitingForSupport: stats.waitingForSupport || 0,
-      waitingForCustomer: stats.waitingForCustomer || 0,
-      pending: stats.pending || 0,
-      inProgress: stats.inProgress || 0
-    });
-  }
+  applyExtraQueueCounters(stats);
+  
+  ipcRenderer.send('compact-mirror-update-stats', buildCompactMirrorPayload(stats));
   
   // 🔬 Atualizar modo micro se ativo
   if (isMicroMode) {
@@ -3712,8 +3813,9 @@ function updateUI(stats) {
       updateProModeSection(stats);
     }
     
-    // Atualizar última atualização
-    document.getElementById('last-update').textContent = `Atualizado: ${new Date().toLocaleTimeString('pt-BR')}`;
+    if (lastUpdateTime) {
+      updateLastUpdateTime();
+    }
     
     debugLog('✅ === UPDATEUI CONCLUÍDO ===');
     
@@ -3989,71 +4091,6 @@ function updateProModeSection(stats) {
   
   // Atualizar indicador de usuário no Modo Pro
   updateProModeUserIndicator();
-  
-  // 📱 SIM Cards - Atualizar contador no card
-  if (stats.simcardPendingTickets) {
-    animateNumber('stat-simcard', stats.simcardPendingTickets.count || 0);
-    debugLog('📱 SIM Cards count:', stats.simcardPendingTickets.count);
-  } else {
-    animateNumber('stat-simcard', 0);
-    debugLog('⚠️ SIM Cards: Nenhum dado recebido');
-  }
-  
-  // 🤖 L0 Jira Bot - Atualizar contador no card
-  if (stats.l0BotTickets) {
-    animateNumber('stat-l0bot', stats.l0BotTickets.count || 0);
-    debugLog('🤖 L0 Bot count:', stats.l0BotTickets.count);
-  } else {
-    animateNumber('stat-l0bot', 0);
-    debugLog('⚠️ L0 Bot: Nenhum dado recebido');
-  }
-  
-  // 🎯 All L1 Open - Atualizar contador no card
-  if (stats.l1OpenTickets) {
-    animateNumber('stat-l1open', stats.l1OpenTickets.count || 0);
-    debugLog('🎯 L1 Open count:', stats.l1OpenTickets.count);
-  } else {
-    animateNumber('stat-l1open', 0);
-    debugLog('⚠️ L1 Open: Nenhum dado recebido');
-  }
-
-  // 👋 WELCOME IT HELP - Atualizar contador no card
-  if (stats.welcomeItHelpTickets) {
-    animateNumber('stat-welcomeithelp', stats.welcomeItHelpTickets.count || 0);
-    debugLog('👋 WELCOME IT HELP count:', stats.welcomeItHelpTickets.count);
-  } else {
-    animateNumber('stat-welcomeithelp', 0);
-    debugLog('⚠️ WELCOME IT HELP: Nenhum dado recebido');
-  }
-
-  // 🚨 CRITICIDADE_BB - Atualizar contador no card + piscar quando subir o total
-  {
-    const newBbCount = stats.criticidadeBbTickets
-      ? (stats.criticidadeBbTickets.count || 0)
-      : 0;
-    if (
-      previousCriticidadeBbCount !== null &&
-      newBbCount > previousCriticidadeBbCount
-    ) {
-      triggerCriticidadeBbCardBlink();
-    }
-    previousCriticidadeBbCount = newBbCount;
-  }
-  if (stats.criticidadeBbTickets) {
-    animateNumber('stat-criticidadebb', stats.criticidadeBbTickets.count || 0);
-    debugLog('🚨 CRITICIDADE_BB count:', stats.criticidadeBbTickets.count);
-  } else {
-    animateNumber('stat-criticidadebb', 0);
-    debugLog('⚠️ CRITICIDADE_BB: Nenhum dado recebido');
-  }
-  
-  // SIM Cards - contador antigo (mantido para compatibilidade se houver referência em outro lugar)
-  if (stats.simcardPendingTickets) {
-    const simCardsCountEl = document.getElementById('sim-cards-count');
-    if (simCardsCountEl) {
-      simCardsCountEl.textContent = stats.simcardPendingTickets.count || 0;
-    }
-  }
   
   // =========================================================
   // CORREÇÃO DOS TICKETS AVALIADOS (SOLUÇÃO DEFINITIVA)
@@ -4536,7 +4573,7 @@ function setupCardListeners() {
 }
 
 function openCardInJira(cardId) {
-  const baseUrl = currentConfig.jiraUrl || 'https://nubank.atlassian.net';
+  const baseUrl = getJiraBaseUrl();
   let url = '';
   
   const assignee = currentConfig.monitorOtherUser && currentConfig.otherUserEmail 
@@ -4565,11 +4602,11 @@ function openCardInJira(cardId) {
     case 'inprogress':
       jql = `assignee = ${assignee} AND resolution = Unresolved AND status in ("In Progress", "Em Progresso")`;
       break;
-    case 'simcard':
-      // Abrir filtro 52128
-      url = 'https://nubank.atlassian.net/issues/?filter=52128';
-      ipcRenderer.invoke('open-url', url);
+    case 'simcard': {
+      const sim = currentStats?.simcardPendingTickets;
+      ipcRenderer.invoke('open-sim-cards-jira', sim || {});
       return;
+    }
     case 'l0bot':
       // Abrir queue 7631
       url = 'https://nubank.atlassian.net/jira/servicedesk/projects/IT/queues/custom/7631';
@@ -4580,11 +4617,14 @@ function openCardInJira(cardId) {
       url = 'https://nubank.atlassian.net/jira/servicedesk/projects/IT/queues/custom/3015';
       ipcRenderer.invoke('open-url', url);
       return;
-    case 'welcomeithelp':
-      // Abrir queue 25342
-      url = 'https://nubank.atlassian.net/jira/servicedesk/projects/IT/queues/custom/25342';
+    case 'welcomeithelp': {
+      const wjql = currentStats?.welcomeItHelpTickets?.jql;
+      url = wjql
+        ? `${baseUrl}/issues/?jql=${encodeURIComponent(wjql)}`
+        : `${baseUrl}/jira/servicedesk/projects/IT/queues/custom/25342`;
       ipcRenderer.invoke('open-url', url);
       return;
+    }
     case 'criticidadebb': {
       // Abrir busca da criticidade com base na JQL usada no contador
       const criticidadeJql = currentStats?.criticidadeBbTickets?.jql
@@ -7309,7 +7349,12 @@ function updateLastUpdateTime() {
     text = `Atualizado há ${hours}h`;
   }
   
-  document.getElementById('last-update').textContent = text;
+  if (dataStale) {
+    text += ' · dados possivelmente desatualizados';
+  }
+  
+  const el = document.getElementById('last-update');
+  if (el) el.textContent = text;
 }
 
 // 🚀 OTIMIZAÇÃO: Atualizar contador a cada 15s (reduz CPU)

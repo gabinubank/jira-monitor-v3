@@ -108,6 +108,7 @@ async function ipcInvoke(channel, ...args) {
         'get-jira-priorities': () => callApi('getJiraPriorities'),
         'open-url': (u) => callApi('openExternal', u),
         'open-external': (u) => callApi('openExternal', u),
+        'open-sim-cards-jira': (p) => callApi('openSimCardsJira', p || {}),
         'open-jira-ticket': (k) => callApi('openJiraTicket', k),
         'open-user-window': (u) => callApi('openUserWindow', u),
         'open-jira-webview': (url, key) => callApi('openJiraWebview', url, key || 'Jira'),
@@ -163,6 +164,9 @@ async function ipcInvoke(channel, ...args) {
         'check-for-updates': () => callApi('checkForUpdates'),
         'perform-update': () => callApi('performUpdate'),
         'play-sound': (path) => callApi('playSound', path || ''),
+
+        'compact-mirror-update-stats': (p) => callApi('publishMirrorStats', p || {}),
+        'get-mirror-stats': () => callApi('getMirrorStats'),
     };
 
     const handler = map[channel];

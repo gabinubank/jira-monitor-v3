@@ -382,7 +382,7 @@
       <!-- Cards de Estatísticas -->
       <div class="stats-grid" id="stats-grid">
         <!-- Card Total -->
-        <div class="stat-card stat-card-total" data-card-id="total" id="card-total">
+        <div class="stat-card stat-card-total" data-card-id="total" id="card-total" title="Total IT — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -415,7 +415,7 @@
         </div>
 
         <!-- Card Waiting for Support -->
-        <div class="stat-card stat-card-support" data-card-id="support" id="card-support">
+        <div class="stat-card stat-card-support" data-card-id="support" id="card-support" title="Waiting for Support — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -438,7 +438,7 @@
         </div>
 
         <!-- Card Waiting for Customer -->
-        <div class="stat-card stat-card-customer" data-card-id="customer" id="card-customer">
+        <div class="stat-card stat-card-customer" data-card-id="customer" id="card-customer" title="Waiting for Customer — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -461,7 +461,7 @@
         </div>
 
         <!-- Card Tickets Pending -->
-        <div class="stat-card stat-card-pending" data-card-id="pending" id="card-pending">
+        <div class="stat-card stat-card-pending" data-card-id="pending" id="card-pending" title="Tickets Pending — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -484,7 +484,7 @@
         </div>
 
         <!-- Card Tickets In Progress -->
-        <div class="stat-card stat-card-inprogress" data-card-id="inprogress" id="card-inprogress">
+        <div class="stat-card stat-card-inprogress" data-card-id="inprogress" id="card-inprogress" title="In Progress — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -507,12 +507,12 @@
         </div>
 
         <!-- 📱 NOVA FILA: Tickets Pending SimCard (Filtro 52128) -->
-        <div class="stat-card stat-card-simcard" data-card-id="simcard" id="card-simcard">
+        <div class="stat-card stat-card-simcard" data-card-id="simcard" id="card-simcard" title="Telefonia / SIM Cards — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
-              <div class="stat-card-icon">
-                <svg viewBox="0 0 24 24" width="24" height="24">
-                  <path fill="currentColor" d="M19.5 6h-15C3.67 6 3 6.67 3 7.5v13c0 .83.67 1.5 1.5 1.5h15c.83 0 1.5-.67 1.5-1.5v-13c0-.83-.67-1.5-1.5-1.5zm-14 13h-1v-11h1v11zm2 0h-1v-11h1v11zm2 0h-1v-11h1v11zm2 0h-1v-11h1v11zm8 0h-7v-11h7v11z"/>
+              <div class="stat-card-icon stat-card-icon-phone">
+                <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+                  <path fill="currentColor" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
                 </svg>
               </div>
               <h3>Tickets Pending SimCard</h3>
@@ -530,7 +530,7 @@
         </div>
 
         <!-- 🤖 NOVA FILA: Tickets L0 Jira Bot (Queue 7631) -->
-        <div class="stat-card stat-card-l0bot" data-card-id="l0bot" id="card-l0bot">
+        <div class="stat-card stat-card-l0bot" data-card-id="l0bot" id="card-l0bot" title="L0 Jira Bot — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -553,7 +553,7 @@
         </div>
 
         <!-- 🎯 NOVA FILA: All L1 Open (Queue 3015) -->
-        <div class="stat-card stat-card-l1open" data-card-id="l1open" id="card-l1open">
+        <div class="stat-card stat-card-l1open" data-card-id="l1open" id="card-l1open" title="L1 Open — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -576,7 +576,7 @@
         </div>
 
         <!-- 👋 NOVA FILA: WELCOME IT HELP (Queue 25342) -->
-        <div class="stat-card stat-card-welcomeithelp" data-card-id="welcomeithelp" id="card-welcomeithelp">
+        <div class="stat-card stat-card-welcomeithelp" data-card-id="welcomeithelp" id="card-welcomeithelp" title="Welcome IT Help — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -599,7 +599,7 @@
         </div>
 
         <!-- 🚨 NOVA FILA: CRITICIDADE_BB (Spaces selecionados) -->
-        <div class="stat-card stat-card-criticidadebb" data-card-id="criticidadebb" id="card-criticidadebb">
+        <div class="stat-card stat-card-criticidadebb" data-card-id="criticidadebb" id="card-criticidadebb" title="CRITICIDADE_BB — clique para abrir no Jira">
           <div class="stat-card-header">
             <div class="stat-card-title-group">
               <div class="stat-card-icon">
@@ -693,9 +693,14 @@
 
         <!-- Tickets de Telefonia SIM cards -->
         <div class="pro-section" id="sim-cards-section">
-          <h3 class="pro-section-title" data-i18n="pro.telefonia">📱 Telefonia</h3>
+          <h3 class="pro-section-title pro-telefonia-heading">
+            <span class="telefonia-icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+            </span>
+            <span data-i18n="pro.telefonia">Telefonia / SIM</span>
+          </h3>
           <div class="sim-cards-main">
-            <button class="custom-btn sim-cards-count-btn" id="sim-cards-count-btn">
+            <button type="button" class="custom-btn sim-cards-count-btn" id="sim-cards-count-btn" title="Telefonia / SIM Cards — clique para abrir no Jira">
               <span class="btn-text" data-i18n="pro.simCards">Tickets SIM Cards</span>
               <span class="stat-number-inline" id="sim-cards-count">0</span>
             </button>
@@ -1529,7 +1534,7 @@
               <div class="shortcut-keys">
                 <kbd>Cmd</kbd> + <kbd>L</kbd>
               </div>
-              <div class="shortcut-description">🔄 Alternar layout (vertical/horizontal)</div>
+              <div class="shortcut-description">Ciclo de layout: Normal → Horizontal → Super compacto (barra mínima) → Normal. No super compacto: janela reduzida e sempre no topo.</div>
             </div>
             <div class="shortcut-item">
               <div class="shortcut-keys">
@@ -1606,6 +1611,13 @@
             <div class="shortcut-item">
               <div class="shortcut-keys"><kbd>Esc</kbd></div>
               <div class="shortcut-description">Fechar busca</div>
+            </div>
+          </div>
+
+          <div class="shortcuts-section">
+            <h3>Segundo monitor / espelho</h3>
+            <div class="shortcut-item" style="border: none; padding: 8px 0;">
+              <div class="shortcut-description">Abra <code>index.html?compact=1</code> noutra janela (mesmo servidor local) para acompanhar os números; a janela principal publica contagens ao usar o modo super compacto. Cliques nos cards usam URL/JQL em cache quando a lista completa não está na vista espelho.</div>
             </div>
           </div>
 

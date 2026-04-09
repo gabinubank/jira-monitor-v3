@@ -17,6 +17,8 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from datetime import datetime
 import time
+import re
+from urllib.parse import quote
 
 # ========== SINGLE INSTANCE LOCK ==========
 LOCK_PORT = 47200
@@ -317,6 +319,9 @@ class SimpleCache:
 
 cache = SimpleCache(ttl=15)  # Cache de 15 segundos (reduzido)
 
+# Payload numérico para janela espelho (?compact=1), fundido no backend
+_mirror_stats_state = {}
+
 # PyInstaller: determinar diretório base
 if getattr(sys, 'frozen', False):
     # Executando como app empacotado
@@ -379,6 +384,44 @@ def get_headers():
 
 def jira_url():
     return config.get("jiraUrl", "https://your-company.atlassian.net")
+
+
+def jira_base_url():
+    """URL base do Jira sem barra final duplicada."""
+    u = (config.get("jiraUrl") or "").strip().rstrip("/")
+    return u or "https://your-company.atlassian.net"
+
+
+def build_sim_cards_jira_url(simcard_blob):
+    """
+    URL para abrir a visão SIM / Telefonia no Jira.
+    Preferência: key(s) em IN (…) quando houver lista; senão filtro salvo (?filter=) — URL curta e estável;
+    por último JQL codificado (pode falhar se muito longo).
+    """
+    base = jira_base_url()
+    blob = simcard_blob or {}
+    tickets = blob.get("tickets") or []
+    keys = [t.get("key") for t in tickets if isinstance(t, dict) and t.get("key")]
+    if keys:
+        jql_keys = "key in (" + ", ".join(keys) + ")"
+        return f"{base}/issues/?jql={quote(jql_keys)}"
+    fid = blob.get("filterId") or config.get("simCardsFilterId", "52128")
+    if fid:
+        return f"{base}/issues/?filter={fid}"
+    jql = blob.get("jql")
+    if jql:
+        return f"{base}/issues/?jql={quote(jql)}"
+    return f"{base}/issues/?filter={config.get('simCardsFilterId', '52128')}"
+
+
+# JQL padrão para contador CRITICIDADE_BB (alinhado ao fallback do renderer)
+CRITICIDADE_BB_JQL = (
+    'project IN ("IT", "GTC", "TECHSTOP") AND labels = CRITICIDADE_BB AND status IN '
+    '(Blocked, "Business Approval", Escalated, "In Execution", "In Progress", "In Validation", '
+    'Open, Pending, "Procurement Process", Validated, "To Do", "Waiting for Customer", '
+    '"Waiting for approval", "Waiting for IT Risk/InfoSec Review", "Waiting for Maat approval") '
+    "ORDER BY created DESC"
+)
 
 class JiraAPI:
     def getConfig(self):
@@ -571,9 +614,12 @@ class JiraAPI:
             print(f"[api] fetchStats: {stats['total']} tickets")
             
             # Pro Mode - usar cache separado e carregar em paralelo
-            stats["simcardPendingTickets"] = self._getCached("simcard", self._getSimCardsTickets)
-            stats["l0BotTickets"] = self._getCached("l0bot", self._getL0BotTickets)
-            stats["l1OpenTickets"] = self._getCached("l1open", self._getL1OpenTickets)
+            sk = other_user_email or "me"
+            stats["simcardPendingTickets"] = self._getCached(f"simcard_{sk}", self._getSimCardsTickets)
+            stats["l0BotTickets"] = self._getCached(f"l0bot_{sk}", self._getL0BotTickets)
+            stats["l1OpenTickets"] = self._getCached(f"l1open_{sk}", self._getL1OpenTickets)
+            stats["welcomeItHelpTickets"] = self._getCached(f"welcome_{sk}", self._getWelcomeItHelpTickets)
+            stats["criticidadeBbTickets"] = self._getCached("criticidade", self._getCriticidadeBbTickets)
             
             # Atividade de Hoje (sem cache - dados em tempo real)
             today_data = self._getTodayActivity()
@@ -1458,6 +1504,24 @@ class JiraAPI:
         webbrowser.open(url)
         return {"success": True}
     
+    def openSimCardsJira(self, payload=None):
+        """Abre o Jira na visão SIM/Telefonia (usa build_sim_cards_jira_url)."""
+        url = build_sim_cards_jira_url(payload if isinstance(payload, dict) else {})
+        webbrowser.open(url)
+        return {"success": True, "url": url}
+    
+    def publishMirrorStats(self, partial=None):
+        """Funde payload parcial para a janela espelho (evita substituir estado completo)."""
+        global _mirror_stats_state
+        if not isinstance(partial, dict):
+            partial = {}
+        _mirror_stats_state = {**_mirror_stats_state, **partial}
+        return {"success": True}
+    
+    def getMirrorStats(self):
+        """Snapshot atual para a view espelho (polling)."""
+        return {"success": True, "data": dict(_mirror_stats_state)}
+    
     def openJiraTicket(self, key):
         webbrowser.open(f"{jira_url()}/browse/{key}")
         return {"success": True}
@@ -2037,45 +2101,150 @@ Se você está vendo este arquivo, o download está funcionando corretamente!
     
     # ========== MODO PRO - Filas Específicas (Otimizado) ==========
     
+    def _jira_search_full(self, jql, max_results=50, fields=None):
+        """Resposta completa da busca JQL (inclui total) ou None."""
+        fields = fields or ["summary", "status", "created", "updated", "assignee"]
+        body = {"jql": jql, "maxResults": max_results, "fields": fields}
+        for path in ("/rest/api/3/search", "/rest/api/3/search/jql"):
+            try:
+                r = requests.post(
+                    f"{jira_url()}{path}",
+                    auth=get_auth(),
+                    headers=get_headers(),
+                    json=body,
+                    timeout=15,
+                )
+                if r.status_code == 200:
+                    return r.json()
+                print(f"[api] JQL search {path}: {r.status_code} {r.text[:400]}")
+            except Exception as e:
+                print(f"[api] JQL search {path} error: {e}")
+        return None
+    
+    def _jira_search_issues(self, jql, max_results=50, fields=None):
+        """POST /rest/api/3/search (padrão Atlassian) com fallback para /search/jql."""
+        data = self._jira_search_full(jql, max_results, fields)
+        if not data:
+            return []
+        return data.get("issues", [])
+    
+    def _issues_to_simplified(self, issues):
+        return [
+            {
+                "key": i.get("key"),
+                "summary": i.get("fields", {}).get("summary", "") or "Sem título",
+                "status": i.get("fields", {}).get("status", {}).get("name", ""),
+                "created": i.get("fields", {}).get("created", ""),
+                "updated": i.get("fields", {}).get("updated", ""),
+                "assignee": i.get("fields", {}).get("assignee", {}).get("displayName")
+                if i.get("fields", {}).get("assignee")
+                else None,
+            }
+            for i in issues
+        ]
+    
     def _quickSearch(self, jql, max_results=30):
-        """Helper para busca rápida"""
+        """Helper para busca rápida (lista simplificada de tickets)."""
+        issues = self._jira_search_issues(jql, max_results)
+        return self._issues_to_simplified(issues)
+    
+    def _get_saved_filter_jql(self, filter_id):
+        """Obtém o JQL de um filtro salvo (para combinar com assignee quando filter = X falha)."""
         try:
-            r = requests.post(
-                f"{jira_url()}/rest/api/3/search/jql",
+            r = requests.get(
+                f"{jira_url()}/rest/api/3/filter/{filter_id}",
                 auth=get_auth(),
                 headers=get_headers(),
-                json={"jql": jql, "maxResults": max_results, "fields": ["summary", "status", "created", "updated", "assignee"]},
-                timeout=10
+                timeout=10,
             )
             if r.status_code == 200:
-                issues = r.json().get("issues", [])
-                return [{
-                    "key": i.get("key"),
-                    "summary": i.get("fields", {}).get("summary", "") or "Sem título",
-                    "status": i.get("fields", {}).get("status", {}).get("name", ""),
-                    "created": i.get("fields", {}).get("created", ""),
-                    "updated": i.get("fields", {}).get("updated", ""),
-                    "assignee": i.get("fields", {}).get("assignee", {}).get("displayName") if i.get("fields", {}).get("assignee") else None
-                } for i in issues]
-            return []
-        except:
-            return []
+                return r.json().get("jql")
+            print(f"[api] GET filter/{filter_id}: {r.status_code} {r.text[:200]}")
+        except Exception as e:
+            print(f"[api] GET filter/{filter_id} error: {e}")
+        return None
     
     def _getSimCardsTickets(self):
-        """Buscar MEUS tickets SIM Cards"""
-        jql = 'filter = 52128 AND assignee = currentUser() ORDER BY created DESC'
+        """Tickets SIM / Telefonia no filtro configurado (respeita monitorar outro usuário)."""
+        fid = str(config.get("simCardsFilterId", "52128"))
+        assignee = self._assignee_jql()
+        custom = (config.get("simCardsJql") or "").strip()
+        tickets = []
+        jql_used = custom or ""
+        count = 0
+        count_from_queue = False
+        if custom:
+            tickets = self._quickSearch(custom, 30)
+            count = len(tickets)
+        else:
+            jql_candidates = [
+                f"filter = {fid} AND assignee = {assignee} ORDER BY created DESC",
+            ]
+            fjql = self._get_saved_filter_jql(fid)
+            if fjql:
+                inner = fjql.strip()
+                inner = re.sub(r"\s+ORDER\s+BY[\s\S]*$", "", inner, flags=re.IGNORECASE)
+                inner = inner.strip()
+                if not inner.upper().startswith("("):
+                    inner = f"({inner})"
+                jql_candidates.append(f"{inner} AND assignee = {assignee} ORDER BY updated DESC")
+            for jql in jql_candidates:
+                jql_used = jql
+                tickets = self._quickSearch(jql, 30)
+                if tickets:
+                    break
+            count = len(tickets)
+            # Filas JSM: muitos tickets sem assignee individual — assignee na JQL dá 0 mesmo com itens no filtro
+            if not tickets:
+                jql_queue = f"filter = {fid} ORDER BY updated DESC"
+                jql_used = jql_queue
+                data = self._jira_search_full(jql_queue, max_results=100)
+                if data:
+                    issues = data.get("issues") or []
+                    total = int(data.get("total", len(issues)))
+                    tickets = self._issues_to_simplified(issues[:30])
+                    count = total
+                    count_from_queue = True
+                    print(
+                        f"[api] SIM: usando total do filtro ({total} issues) — "
+                        f"assignee não retornou linhas (fila/queue típica de JSM)."
+                    )
+        blob = {
+            "count": count,
+            "tickets": tickets,
+            "jql": jql_used,
+            "filterId": fid,
+            "countFromQueueFilter": count_from_queue,
+        }
+        blob["openUrl"] = build_sim_cards_jira_url(blob)
+        return blob
+    
+    def _getWelcomeItHelpTickets(self):
+        """Fila WELCOME IT HELP (JQL ou filtro configurável)."""
+        assignee = self._assignee_jql()
+        jql = config.get("welcomeItHelpJql") or (
+            f'filter = {config.get("welcomeItHelpFilterId", "25342")} AND assignee = {assignee} ORDER BY created DESC'
+        )
         tickets = self._quickSearch(jql, 30)
+        return {"count": len(tickets), "tickets": tickets, "jql": jql}
+    
+    def _getCriticidadeBbTickets(self):
+        """Tickets com label CRITICIDADE_BB (JQL configurável)."""
+        jql = config.get("criticidadeBbJql") or CRITICIDADE_BB_JQL
+        tickets = self._quickSearch(jql, 50)
         return {"count": len(tickets), "tickets": tickets, "jql": jql}
     
     def _getL0BotTickets(self):
         """Buscar MEUS tickets L0 Jira Bot"""
-        jql = 'project = "IT" AND assignee = currentUser() AND statusCategory != Done ORDER BY created DESC'
+        a = self._assignee_jql()
+        jql = f'project = "IT" AND assignee = {a} AND statusCategory != Done ORDER BY created DESC'
         tickets = self._quickSearch(jql, 50)
         return {"count": len(tickets), "tickets": tickets, "jql": jql}
     
     def _getL1OpenTickets(self):
         """Buscar MEUS tickets L1 Open"""
-        jql = 'project = "IT" AND assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC'
+        a = self._assignee_jql()
+        jql = f'project = "IT" AND assignee = {a} AND resolution = Unresolved ORDER BY updated DESC'
         tickets = self._quickSearch(jql, 50)
         return {"count": len(tickets), "tickets": tickets, "jql": jql}
     
@@ -2854,7 +3023,9 @@ if __name__ == '__main__':
         min_size=(200, 80),  # Reduzido para permitir modo compacto
         resizable=True,
         frameless=True,
-        easy_drag=False  # Desabilitar drag de qualquer lugar - usar apenas pywebview-drag-region
+        # True: permite arrastar a janela (macOS/WKWebView não aplica bem só via CSS -webkit-app-region).
+        # Botões e cards usam -webkit-app-region: no-drag em pywebview-fixes.css / styles.css.
+        easy_drag=True,
     )
     window = main_window  # Atribuir à variável global para uso na API
     

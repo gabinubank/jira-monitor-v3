@@ -1752,7 +1752,23 @@ body {
   transform: scale(1.1);
 }
 
-/* SIM Cards */
+/* SIM Cards / Telefonia */
+.pro-telefonia-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.telefonia-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(102, 126, 234, 0.2);
+  color: #667eea;
+}
+
 .sim-cards-main {
   display: flex;
   align-items: center;
@@ -1934,6 +1950,11 @@ body {
   color: var(--footer-text);
   font-size: 12px;
   transition: color 0.3s ease;
+}
+
+#last-update.last-update--stale {
+  color: #f0a030;
+  font-weight: 500;
 }
 
 .loading-indicator {
@@ -3680,12 +3701,12 @@ body {
    ======================================== */
 
 .app-container.super-compact-layout {
-  width: 360px;
-  height: 72px;
-  min-height: 72px;
-  max-height: 72px;
-  min-width: 360px;
-  max-width: 360px;
+  width: 520px;
+  height: 78px;
+  min-height: 78px;
+  max-height: 78px;
+  min-width: 520px;
+  max-width: 560px;
   -webkit-app-region: drag; /* Permite arrastar a janela */
 }
 
@@ -3925,22 +3946,36 @@ body {
   display: none !important;
 }
 
-/* Modo super compacto: Mostrar apenas 3 cards específicos */
+/* Modo super compacto: esconder totais L0/L1 e card “total” para caber telefonia/SIM com os demais */
 .app-container.super-compact-layout .stat-card-total,
-.app-container.super-compact-layout .stat-card-simcard,
 .app-container.super-compact-layout .stat-card-l0bot,
 .app-container.super-compact-layout .stat-card-l1open {
   display: none !important;
 }
 
-/* Garantir que os cards operacionais sejam visíveis no modo compacto */
+/* Garantir que os cards operacionais + SIM sejam visíveis no modo compacto */
 .app-container.super-compact-layout .stat-card-support,
 .app-container.super-compact-layout .stat-card-customer,
 .app-container.super-compact-layout .stat-card-pending,
 .app-container.super-compact-layout .stat-card-inprogress,
+.app-container.super-compact-layout .stat-card-simcard,
 .app-container.super-compact-layout .stat-card-welcomeithelp,
 .app-container.super-compact-layout .stat-card-criticidadebb {
   display: flex !important;
+}
+
+.app-container.super-compact-layout .stat-card-simcard {
+  background: rgba(46, 204, 113, 0.22);
+  border: 1px solid rgba(46, 204, 113, 0.45);
+}
+
+.app-container.super-compact-layout .stat-card-simcard:hover {
+  background: rgba(46, 204, 113, 0.32);
+  border-color: rgba(46, 204, 113, 0.6);
+}
+
+.app-container.super-compact-layout .stat-card-simcard .stat-card-icon-phone {
+  color: #b8f5c9 !important;
 }
 
 /* No modo super compacto, manter sempre 3 colunas (layout fixo) */
